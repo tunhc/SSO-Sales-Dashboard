@@ -377,12 +377,12 @@ tr.sub td:first-child{padding-left:28px}
 
   <div class="card">
     <h3 style="margin:0 0 4px">PIC Progress</h3>
-    <div class="hint">Click a column header to sort (default: highest GMV target first). Bấm tên PIC (▸) để xem từng SKU; bấm mã SKU để mở trang Amazon. Green/amber/red on Actual-side metrics follow the same ahead/on-track/behind pace bands used in the gauges above; MKT/GMV% coloring is lower-is-better (more efficient than planned).</div>
+    <div class="hint">Click a column header to sort (default: highest GMV target first). Bấm tên PIC (▸) để xem theo Product Line, bấm lại để ẩn. Green/amber/red on Actual-side metrics follow the same ahead/on-track/behind pace bands used in the gauges above; MKT/GMV% coloring is lower-is-better (more efficient than planned).</div>
     <div class="tablewrap">
       <table id="picProgressTable">
         <thead><tr>
           <th data-k="name">PIC</th>
-          <th data-k="skuCount">SKU</th>
+          <th data-k="skuCount" class="num">SKU</th>
           <th data-k="targetGMV" class="num">GMV Target</th>
           <th data-k="actualGMV" class="num">GMV Actual</th>
           <th data-k="gmvProgressPct" class="num">% Progress</th>
@@ -469,8 +469,6 @@ tr.sub td:first-child{padding-left:28px}
     <div class="tablewrap">
       <table id="skuTable">
         <thead><tr>
-          <th data-k="team">Team</th>
-          <th data-k="leader">Leader</th>
           <th data-k="pic">PIC</th>
           <th data-k="mainPL">Main PL</th>
           <th data-k="subPL">Sub PL</th>
@@ -1408,14 +1406,13 @@ function picDerive(list){
 }
 function renderPicProgressTable(byPic, rows){
   const sorted = sortGroups(picDerive(byPic), picSortKey, picSortDir);
-  const bySku = new Map(rows.map(r=>[r.sku, r]));
-  const skuRows = g => !picOpen.has(g.name) ? '' :
-    sortGroups(picDerive(aggregate(rows.filter(r=>r.pic===g.name), 'sku')), picSortKey, picSortDir).map(k=>picRowHtml(k, bySku.get(k.name))).join('');
-  document.getElementById('picProgressTbody').innerHTML = sorted.map(g=>picRowHtml(g, null) + skuRows(g)).join('')
+  const plRows = g => !picOpen.has(g.name) ? '' :
+    sortGroups(picDerive(aggregate(rows.filter(r=>r.pic===g.name), 'mainPL')), picSortKey, picSortDir).map(k=>picRowHtml(k, true)).join('');
+  document.getElementById('picProgressTbody').innerHTML = sorted.map(g=>picRowHtml(g, false) + plRows(g)).join('')
     || '<tr><td colspan="18" style="text-align:center;padding:20px;color:#66707C">No data</td></tr>';
 }
-// one PIC row, or (sku given) one SKU row under its PIC
-function picRowHtml(g, sku){
+// one PIC row, or (sub) one Product Line row under its PIC
+function picRowHtml(g, sub){
   {
     const progColor = zoneColor(g.gmvProgressPct, false);
     const rrColor = zoneColor(g.gmvRunratePct, false);
@@ -1424,15 +1421,12 @@ function picRowHtml(g, sku){
     const adsColor = zoneColor(g.adsSpentPct, false);
     const promoColor = zoneColor(g.promoSpentPct, false);
     const safe = escapeHtml(String(g.name)).replace(/"/g,'&quot;');
-    const first = sku
-      ? `<td class="name-cell" style="color:var(--muted);max-width:260px" title="${escapeHtml(sku.productName||'').replace(/"/g,'&quot;')}">${escapeHtml(sku.productName||'')}</td>`
+    const first = sub
+      ? `<td>${escapeHtml(g.name)}</td>`
       : `<td><a href="#" class="pic-link" data-pic="${safe}" style="color:var(--navy);font-weight:800;text-decoration:none">${caret(picOpen.has(g.name))}${escapeHtml(g.name)}</a></td>`;
-    const skuCell = sku
-      ? (sku.asin ? `<a href="https://www.amazon.com/dp/${encodeURIComponent(sku.asin)}" target="_blank" rel="noopener noreferrer" title="Mở ${escapeHtml(sku.asin)} trên Amazon" style="color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px dashed var(--navy)">${escapeHtml(sku.sku)}</a>` : `<b>${escapeHtml(sku.sku)}</b>`)
-      : `<span class="v2-note">${fmtInt(g.skuCount)} SKU</span>`;
-    return `<tr${sku ? ' class="sub"' : ''}>
+    return `<tr${sub ? ' class="sub"' : ''}>
       ${first}
-      <td>${skuCell}</td>
+      <td class="num">${fmtInt(g.skuCount)}</td>
       <td class="num">${fmtMoney(g.targetGMV)}</td>
       <td class="num" style="color:${progColor};font-weight:700">${fmtMoney2(g.actualGMV)}</td>
       <td class="num" style="color:${progColor};font-weight:700">${g.gmvProgressPct.toFixed(0)}%</td>
@@ -1695,7 +1689,6 @@ function renderTable(rows){
       : `Trailing 7-day velocity: ${r.docVelocity.toFixed(2)} units/day. Projected stockout: ${r.stockoutDate}`;
     const docCell = `<span class="badge ${docCls}" title="${docTitle}">${docLabel}</span>`;
     return `<tr>
-      <td>${escapeHtml(r.team)}</td><td>${escapeHtml(r.leader)}</td>
       <td>${r.pic}</td><td>${r.mainPL}</td><td>${r.subPL}</td>
       <td>${skuCell} ${flag}</td>
       <td class="name-cell" title="${(r.productName||'').replace(/"/g,'&quot;')}">${r.productName||''}</td>
@@ -1716,7 +1709,7 @@ function renderTable(rows){
       <td class="num">${r.glanceViews ? fmtInt(r.glanceViews) : '—'}</td>
       <td class="num">${r.cr === null || r.cr === undefined ? '—' : r.cr.toFixed(2) + '%'}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="25" style="text-align:center;padding:24px;color:#66707C">No SKU matches the current filters</td></tr>';
+  }).join('') || '<tr><td colspan="23" style="text-align:center;padding:24px;color:#66707C">No SKU matches the current filters</td></tr>';
 }
 
 document.querySelectorAll('#skuTable thead th').forEach(th=>{
@@ -1751,7 +1744,7 @@ function renderAll(){
 function exportSkuTable(){
   if(!lastSortedRows.length){ alert('No rows to export — adjust your filters first.'); return; }
   const data = lastSortedRows.map(r=>({
-    'Team': r.team, 'Leader': r.leader, 'PIC': r.pic, 'Main PL': r.mainPL, 'Sub PL': r.subPL, 'SKU': r.sku, 'Product Name': r.productName||'',
+    'PIC': r.pic, 'Main PL': r.mainPL, 'Sub PL': r.subPL, 'SKU': r.sku, 'Product Name': r.productName||'',
     'Channel': r.channel, 'Portfolio': r.portfolio,
     'DOC (days)': r.docDays===null ? 'N/A' : r.docDays===0 ? 'OOS' : !Number.isFinite(r.docDays) ? '999+' : Math.round(r.docDays),
     'DOC Band': r.docBand, 'Stockout Date': r.stockoutDate || '',
