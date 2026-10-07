@@ -347,12 +347,11 @@ tr.sub td:first-child{padding-left:28px}
 
   <div class="card">
     <h3 style="margin:0 0 4px">Team Progress</h3>
-    <div class="hint">Một dòng cho mỗi Team (Leader). Bấm tên Team để lọc toàn tab theo team đó (bấm lại để bỏ lọc). Màu xanh/vàng/đỏ theo cùng ngưỡng pace với các gauge phía trên. CM3 % tính trên GMV của các SKU đã có cost stack (cột “% GMV có cost”).</div>
+    <div class="hint">Bấm tên Team (▸) để xem các Leader bên dưới, bấm lại để ẩn. Màu xanh/vàng/đỏ theo cùng ngưỡng pace với các gauge phía trên. CM3 % tính trên GMV của các SKU đã có cost stack (cột “% GMV có cost”).</div>
     <div class="tablewrap">
       <table id="teamProgressTable">
         <thead><tr>
           <th data-k="name">Team</th>
-          <th data-k="leader">Leader</th>
           <th data-k="picCount" class="num">PIC</th>
           <th data-k="skuCount" class="num">SKU</th>
           <th data-k="targetGMV" class="num">GMV Target</th>
@@ -378,13 +377,12 @@ tr.sub td:first-child{padding-left:28px}
 
   <div class="card">
     <h3 style="margin:0 0 4px">PIC Progress</h3>
-    <div class="hint">Click a column header to sort (default: highest GMV target first). Click a PIC name to filter the whole tab. Green/amber/red on Actual-side metrics follow the same ahead/on-track/behind pace bands used in the gauges above; MKT/GMV% coloring is lower-is-better (more efficient than planned).</div>
+    <div class="hint">Click a column header to sort (default: highest GMV target first). Bấm tên PIC (▸) để xem từng SKU; bấm mã SKU để mở trang Amazon. Green/amber/red on Actual-side metrics follow the same ahead/on-track/behind pace bands used in the gauges above; MKT/GMV% coloring is lower-is-better (more efficient than planned).</div>
     <div class="tablewrap">
       <table id="picProgressTable">
         <thead><tr>
           <th data-k="name">PIC</th>
-          <th data-k="team">Team</th>
-          <th data-k="leader">Leader</th>
+          <th data-k="skuCount">SKU</th>
           <th data-k="targetGMV" class="num">GMV Target</th>
           <th data-k="actualGMV" class="num">GMV Actual</th>
           <th data-k="gmvProgressPct" class="num">% Progress</th>
@@ -1316,17 +1314,19 @@ function sortGroups(list, key, dir){
 
 // Team Progress: one row per Team (team_map.js / skus.team), TOTAL on top.
 let teamSortKey = 'targetGMV', teamSortDir = -1;
-function teamRowHtml(g, isTotal, activeTeam){
+let teamOpen = new Set();
+const caret = open => `<span style="display:inline-block;width:14px;color:var(--muted)">${open ? '▾' : '▸'}</span>`;
+function teamRowHtml(g, isTotal, activeTeam, level){
   const prog = g.targetGMV ? g.actualGMV/g.targetGMV*100 : 0, rr = g.targetGMV ? g.gmvRunrateProj/g.targetGMV*100 : 0;
   const tMkt = g.targetGMV ? g.mktTarget/g.targetGMV*100 : 0, cMkt = g.actualGMV ? g.mktActual/g.actualGMV*100 : 0;
   const tacos = g.actualGMV ? g.adsActual/g.actualGMV*100 : null;
   const cm3Pct = g.cm3Gmv ? g.cm3/g.cm3Gmv*100 : null, costed = g.actualGMV ? g.cm3Gmv/g.actualGMV*100 : null;
   const safe = escapeHtml(g.name).replace(/"/g,'&quot;');
   const nameCell = isTotal ? 'TOTAL'
-    : `<a href="#" class="team-link" data-team="${safe}" style="color:var(--navy);font-weight:800;text-decoration:none;border-bottom:1px dashed var(--navy)">${escapeHtml(g.name)}</a>${activeTeam===g.name?' <span class="badge amber">đang lọc</span>':''}`;
-  return `<tr${isTotal?' style="background:#F5F7FA;font-weight:700"':''}>
+    : level ? `<span style="color:var(--ink)">${escapeHtml(g.name)}</span>`
+    : `<a href="#" class="team-link" data-team="${safe}" style="color:var(--navy);font-weight:800;text-decoration:none">${caret(teamOpen.has(g.name))}${escapeHtml(g.name)}</a>${activeTeam===g.name?' <span class="badge amber">đang lọc</span>':''}`;
+  return `<tr${isTotal?' style="background:#F5F7FA;font-weight:700"':level?' class="sub"':''}>
     <td>${nameCell}</td>
-    <td>${isTotal ? '' : escapeHtml(g.leader)}</td>
     <td class="num">${fmtInt(g.picCount)}</td>
     <td class="num">${fmtInt(g.skuCount)}</td>
     <td class="num">${fmtMoney(g.targetGMV)}</td>
@@ -1346,8 +1346,8 @@ function teamRowHtml(g, isTotal, activeTeam){
     <td class="num">${fmtPctOrDash(costed, 0)}</td>
   </tr>`;
 }
-function renderTeamProgressTable(byTeam){
-  const derived = byTeam.map(g=>({...g,
+function teamDerive(list){
+  return list.map(g=>({...g,
     gmvProgressPct: g.targetGMV ? g.actualGMV/g.targetGMV*100 : 0,
     gmvRunratePct: g.targetGMV ? g.gmvRunrateProj/g.targetGMV*100 : 0,
     gmvRemaining: g.targetGMV - g.actualGMV,
@@ -1355,13 +1355,18 @@ function renderTeamProgressTable(byTeam){
     currentMktGmvPct: g.actualGMV ? g.mktActual/g.actualGMV*100 : 0,
     tacos: g.actualGMV ? g.adsActual/g.actualGMV*100 : null,
   }));
+}
+function renderTeamProgressTable(byTeam, rows){
+  const derived = teamDerive(byTeam);
   const sorted = sortGroups(derived, teamSortKey, teamSortDir);
+  const leaderRows = g => !teamOpen.has(g.name) ? '' :
+    sortGroups(teamDerive(aggregate(rows.filter(r=>r.team===g.name), 'leader')), teamSortKey, teamSortDir).map(l=>teamRowHtml(l, false, '', 1)).join('');
   const activeTeam = document.getElementById('fTeam').value;
   const total = {name:'TOTAL', picCount:0};
   ['targetGMV','actualGMV','gmvRunrateProj','mktTarget','mktActual','adsActual','actualUnits','cm3','cm3Gmv','cm3Target','skuCount','picCount'].forEach(k=>{ total[k] = derived.reduce((s,g)=>s+(g[k]||0), 0); });
   document.getElementById('teamProgressTbody').innerHTML = derived.length
-    ? (derived.length > 1 ? teamRowHtml(total, true, activeTeam) : '') + sorted.map(g=>teamRowHtml(g, false, activeTeam)).join('')
-    : '<tr><td colspan="19" style="text-align:center;padding:20px;color:#66707C">No data</td></tr>';
+    ? (derived.length > 1 ? teamRowHtml(total, true, activeTeam) : '') + sorted.map(g=>teamRowHtml(g, false, activeTeam) + leaderRows(g)).join('')
+    : '<tr><td colspan="18" style="text-align:center;padding:20px;color:#66707C">No data</td></tr>';
 }
 document.querySelectorAll('#teamProgressTable thead th').forEach(th=>{
   th.addEventListener('click', ()=>{
@@ -1370,16 +1375,13 @@ document.querySelectorAll('#teamProgressTable thead th').forEach(th=>{
     renderAll();
   });
 });
-// Click a Team name: filter the whole Tracking tab to that team (click again to clear)
+// Click a Team name: show / hide its leaders
 document.getElementById('teamProgressTbody').addEventListener('click', (e)=>{
   const a = e.target.closest('.team-link');
   if(!a) return;
   e.preventDefault();
-  const sel = document.getElementById('fTeam');
-  sel.value = sel.value === a.dataset.team ? '' : a.dataset.team;
-  document.getElementById('fLeader').value = '';
-  document.getElementById('fPic').value = '';
-  updateDependentSelects();
+  const t = a.dataset.team;
+  if(teamOpen.has(t)) teamOpen.delete(t); else teamOpen.add(t);
   renderAll();
 });
 
@@ -1389,8 +1391,9 @@ document.getElementById('teamProgressTbody').addEventListener('click', (e)=>{
 // bands already used for the gauges above and the Ads Performance tab.
 let picSortKey = 'targetGMV', picSortDir = -1; // default: highest GMV target first
 
-function renderPicProgressTable(byPic){
-  const derived = byPic.map(g=>{
+let picOpen = new Set();
+function picDerive(list){
+  return list.map(g=>{
     const gmvProgressPct = g.targetGMV ? g.actualGMV/g.targetGMV*100 : 0;
     const gmvRunratePct = g.targetGMV ? g.gmvRunrateProj/g.targetGMV*100 : 0;
     const gmvRemaining = g.targetGMV - g.actualGMV;
@@ -1402,20 +1405,34 @@ function renderPicProgressTable(byPic){
     const promoSpentPct = g.promoTarget ? g.promoActual/g.promoTarget*100 : 0;
     return {...g, gmvProgressPct, gmvRunratePct, gmvRemaining, mktSpentPct, targetMktGmvPct, currentMktGmvPct, mktGmvIndex, adsSpentPct, promoSpentPct};
   });
-
-  const sorted = sortGroups(derived, picSortKey, picSortDir);
-
-  document.getElementById('picProgressTbody').innerHTML = sorted.map(g=>{
+}
+function renderPicProgressTable(byPic, rows){
+  const sorted = sortGroups(picDerive(byPic), picSortKey, picSortDir);
+  const bySku = new Map(rows.map(r=>[r.sku, r]));
+  const skuRows = g => !picOpen.has(g.name) ? '' :
+    sortGroups(picDerive(aggregate(rows.filter(r=>r.pic===g.name), 'sku')), picSortKey, picSortDir).map(k=>picRowHtml(k, bySku.get(k.name))).join('');
+  document.getElementById('picProgressTbody').innerHTML = sorted.map(g=>picRowHtml(g, null) + skuRows(g)).join('')
+    || '<tr><td colspan="18" style="text-align:center;padding:20px;color:#66707C">No data</td></tr>';
+}
+// one PIC row, or (sku given) one SKU row under its PIC
+function picRowHtml(g, sku){
+  {
     const progColor = zoneColor(g.gmvProgressPct, false);
     const rrColor = zoneColor(g.gmvRunratePct, false);
     const spentColor = zoneColor(g.mktSpentPct, false);
     const idxColor = zoneColor(g.mktGmvIndex, true);
     const adsColor = zoneColor(g.adsSpentPct, false);
     const promoColor = zoneColor(g.promoSpentPct, false);
-    return `<tr>
-      <td><a href="#" class="pic-link" data-pic="${String(g.name).replace(/"/g,'&quot;')}" title="Lọc toàn tab theo ${String(g.name).replace(/"/g,'&quot;')}" style="color:var(--navy);font-weight:800;text-decoration:none;border-bottom:1px dashed var(--navy)">${g.name}</a>${document.getElementById('fPic').value===g.name?' <span class="badge amber">đang lọc</span>':''}</td>
-      <td>${escapeHtml(g.team)}</td>
-      <td>${escapeHtml(g.leader)}</td>
+    const safe = escapeHtml(String(g.name)).replace(/"/g,'&quot;');
+    const first = sku
+      ? `<td class="name-cell" style="color:var(--muted);max-width:260px" title="${escapeHtml(sku.productName||'').replace(/"/g,'&quot;')}">${escapeHtml(sku.productName||'')}</td>`
+      : `<td><a href="#" class="pic-link" data-pic="${safe}" style="color:var(--navy);font-weight:800;text-decoration:none">${caret(picOpen.has(g.name))}${escapeHtml(g.name)}</a></td>`;
+    const skuCell = sku
+      ? (sku.asin ? `<a href="https://www.amazon.com/dp/${encodeURIComponent(sku.asin)}" target="_blank" rel="noopener noreferrer" title="Mở ${escapeHtml(sku.asin)} trên Amazon" style="color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px dashed var(--navy)">${escapeHtml(sku.sku)}</a>` : `<b>${escapeHtml(sku.sku)}</b>`)
+      : `<span class="v2-note">${fmtInt(g.skuCount)} SKU</span>`;
+    return `<tr${sku ? ' class="sub"' : ''}>
+      ${first}
+      <td>${skuCell}</td>
       <td class="num">${fmtMoney(g.targetGMV)}</td>
       <td class="num" style="color:${progColor};font-weight:700">${fmtMoney2(g.actualGMV)}</td>
       <td class="num" style="color:${progColor};font-weight:700">${g.gmvProgressPct.toFixed(0)}%</td>
@@ -1433,7 +1450,7 @@ function renderPicProgressTable(byPic){
       <td class="num" style="color:${cm3Color(g.cm3Pct)};font-weight:700">${g.cm3Gmv ? fmtMoney(g.cm3) : '—'}</td>
       <td class="num" style="color:${cm3Color(g.cm3Pct)};font-weight:700">${fmtPctOrDash(g.cm3Pct)}</td>
     </tr>`;
-  }).join('') || '<tr><td colspan="19" style="text-align:center;padding:20px;color:#66707C">No data</td></tr>';
+  }
 }
 
 document.querySelectorAll('#picProgressTable thead th').forEach(th=>{
@@ -1444,16 +1461,14 @@ document.querySelectorAll('#picProgressTable thead th').forEach(th=>{
   });
 });
 
-// Click a PIC name: filter the whole Tracking tab to that PIC (click again to clear)
+// Click a PIC name: show / hide its SKUs
 document.getElementById('picProgressTbody').addEventListener('click', (e)=>{
   const a = e.target.closest('.pic-link');
   if(!a) return;
   e.preventDefault();
-  const sel = document.getElementById('fPic');
-  sel.value = sel.value === a.dataset.pic ? '' : a.dataset.pic;
-  updateDependentSelects();
+  const p = a.dataset.pic;
+  if(picOpen.has(p)) picOpen.delete(p); else picOpen.add(p);
   renderAll();
-  if(sel.value) document.getElementById('plProgressTable').scrollIntoView({behavior:'smooth', block:'start'});
 });
 
 // Product Line Progress summary table (replaces the old GMV/MKT bar-chart
@@ -1522,9 +1537,9 @@ document.getElementById('plProgressTbody').addEventListener('click', (e)=>{
 });
 
 function renderCharts(rows){
-  renderTeamProgressTable(aggregate(rows,'team'));
+  renderTeamProgressTable(aggregate(rows,'team'), rows);
   const byPic = aggregate(rows,'pic');
-  renderPicProgressTable(byPic);
+  renderPicProgressTable(byPic, rows);
 
   const byMain = aggregate(rows,'mainPL');
   renderPlProgressTable(byMain);
