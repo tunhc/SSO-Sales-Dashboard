@@ -39,6 +39,7 @@ ADS_NET = 0.985  # Ads less 1.5% Amex kickback
 TEAM_LEADER = {"Team Cẩm Tú": "Quế Anh"}      # one leader for the whole team when the PIC file has none
 LEADER_ALIAS = {"Tú ASC": "Quế Anh"}           # renamed leaders
 NO_LEADER_TEAMS = {"Spreetail"}                # partner-managed, no leader
+PIC_OVERRIDE = {"5DEI": "Nhi Diệp", "JUVN": "Nhi Diệp", "VU7D": "Nhi Diệp"}  # not in any PIC file (confirmed 07/10)
 
 
 def short_name(v):
@@ -339,6 +340,9 @@ def build(a):
 
     for s in skus.values():
         s["pic"], s["sem_pic"] = short_name(s.get("pic")), short_name(s.get("sem_pic"))
+        if not s["pic"] and s["sku"] in fol:  # e.g. PIC "0" in the Đồng Dinh file but owned in the follow-up file
+            s["pic"] = short_name(fol[s["sku"]].get("pic"))
+        s["pic"] = PIC_OVERRIDE.get(s["sku"], s["pic"])
         leader = short_name(s.get("leader"))
         leader = LEADER_ALIAS.get(leader, leader)
         if not leader and s.get("team") in TEAM_LEADER:
