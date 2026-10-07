@@ -1,0 +1,6 @@
+sql_out/
+*_upsert.sql
+*.xlsx
+*.csv
+__pycache__/
+.env

@@ -1,0 +1,2033 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Yes4All &middot; SSO Sales Dashboard</title>
+<link rel="icon" href="assets/favicon.ico" sizes="any">
+<link rel="icon" type="image/png" sizes="32x32" href="assets/favicon-32.png">
+<link rel="apple-touch-icon" href="assets/apple-touch-icon.png">
+<meta name="theme-color" content="#002859">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js"></script>
+<script>window.Plotly || document.write('<script src="https://cdn.plot.ly/plotly-2.35.2.min.js"><\/script>');</script>
+<style>
+:root{
+  /* Yes4All Brand Guidelines */
+  --navy:#002859;        /* Pantone 648C - Prussian Blue */
+  --navy-2:#0B3E7A;
+  --orange:#FF7000;      /* Pantone 1505C - Blaze Orange */
+  --orange-dark:#E06400;
+  --grey:#E4E5E6;        /* Pantone 179-2C - Iron Grey */
+  --white:#FFFFFF;
+  --ink:#1B2733; --muted:#66707C; --line:#E4E5E6;
+  --bg:#F6F7F8; --card:#FFFFFF;
+  /* functional status accents (not brand colors, used only for KPI/gauge signal) */
+  --green:#1E8E5A; --green-bg:#E7F5EE;
+  --red:#D64545; --red-bg:#FBEAEA;
+  --amber:#B8860B; --amber-bg:#FBF3DF;
+  --shadow:0 2px 10px rgba(0,40,89,.07);
+  --shadow-lg:0 10px 30px rgba(0,40,89,.14);
+}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font-family:Calibri, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif;font-size:13px;line-height:1.5}
+header{background:linear-gradient(120deg,var(--navy) 0%,var(--navy-2) 100%);color:#fff;padding:18px 26px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;box-shadow:var(--shadow-lg)}
+.brand{display:flex;align-items:center;gap:12px}
+.brand .mark{position:relative;width:50px;height:50px;border-radius:13px;background:radial-gradient(circle at 50% 42%,#fff 0%,#fff 58%,#FFE9D6 100%);display:grid;place-items:center;overflow:hidden;
+  box-shadow:0 0 0 1px rgba(255,255,255,.7),0 0 14px 2px rgba(255,140,40,.55),0 0 34px 6px rgba(255,112,0,.28);animation:logoGlow 3.2s ease-in-out infinite}
+.brand .mark img{width:38px;height:auto;display:block;position:relative;z-index:1;filter:drop-shadow(0 1px 1.5px rgba(0,40,89,.25))}
+.brand .mark::after{content:'';position:absolute;top:-60%;left:-80%;width:45%;height:220%;transform:rotate(25deg);background:linear-gradient(90deg,rgba(255,255,255,0),rgba(255,255,255,.95),rgba(255,255,255,0));z-index:2;animation:logoShine 4.8s ease-in-out infinite}
+@keyframes logoGlow{0%,100%{box-shadow:0 0 0 1px rgba(255,255,255,.7),0 0 12px 2px rgba(255,140,40,.45),0 0 28px 4px rgba(255,112,0,.20)}50%{box-shadow:0 0 0 1px rgba(255,255,255,.9),0 0 20px 5px rgba(255,150,50,.75),0 0 46px 12px rgba(255,112,0,.38)}}
+@keyframes logoShine{0%,62%{left:-80%}82%,100%{left:140%}}
+@media (prefers-reduced-motion:reduce){.brand .mark,.brand .mark::after{animation:none}}
+.brand h1{font-size:17px;margin:0;font-weight:800;letter-spacing:.2px}
+.brand .sub{font-size:11px;color:#B9C6D6;margin-top:2px}
+.meta{display:flex;gap:16px;align-items:center;font-size:11px;color:#B9C6D6;flex-wrap:wrap}
+.meta b{color:#fff}
+.pill{background:rgba(255,255,255,.14);border:1px solid rgba(255,255,255,.2);border-radius:20px;padding:5px 12px;font-weight:700;color:#fff;font-size:11px}
+
+nav.tabs{display:flex;gap:6px;padding:12px 26px 0;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:50}
+nav.tabs button{border:none;background:transparent;padding:11px 18px;font-weight:700;font-size:12.5px;color:var(--muted);cursor:pointer;border-radius:8px 8px 0 0;border-bottom:3px solid transparent;transition:.15s;font-family:inherit}
+nav.tabs button:hover{color:var(--orange-dark);background:#FFF3EA}
+nav.tabs button.active{color:var(--orange-dark);border-bottom:3px solid var(--orange)}
+
+main{padding:20px 26px 60px}
+.view{display:none}
+.view.active{display:block;animation:fade .25s ease}
+@keyframes fade{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+
+.filterbar{display:flex;gap:10px;flex-wrap:wrap;align-items:end;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:16px;box-shadow:var(--shadow)}
+.filterbar .fld{display:flex;flex-direction:column;gap:4px}
+.filterbar label{font-size:10.5px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.filterbar select, .filterbar input[type=text]{border:1px solid var(--line);border-radius:8px;padding:7px 10px;font-size:12.5px;min-width:150px;background:#fff;color:var(--ink);font-family:inherit}
+.filterbar select:focus, .filterbar input:focus{outline:2px solid var(--orange);outline-offset:1px}
+.btn{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:8px;padding:8px 14px;font-weight:700;font-size:12px;cursor:pointer;font-family:inherit}
+.btn:hover{background:#FFF3EA;border-color:var(--orange)}
+.btn.primary{background:var(--orange);border-color:var(--orange);color:#fff}
+.btn.primary:hover{background:var(--orange-dark)}
+.btn.small{padding:5px 10px;font-size:11px}
+.result-count{margin-left:auto;font-size:11.5px;color:var(--muted);font-weight:700;align-self:center}
+
+.section-title{font-size:12.5px;font-weight:800;color:var(--navy);text-transform:uppercase;letter-spacing:.5px;margin:22px 0 10px}
+.section-title:first-child{margin-top:0}
+
+.moc-strip{display:flex;gap:10px;flex-wrap:wrap;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:16px;box-shadow:var(--shadow);align-items:center}
+.moc-strip .lbl{font-size:11px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:4px}
+.moc-chip{display:flex;align-items:center;gap:7px;border-radius:20px;padding:6px 13px;font-weight:700;font-size:12px}
+.moc-chip .n{font-size:15px;font-weight:900}
+.moc-chip.clickable{cursor:pointer;transition:transform .1s,box-shadow .1s;user-select:none}
+.moc-chip.clickable:hover{transform:translateY(-1px)}
+.moc-chip.active{box-shadow:0 0 0 2px currentColor inset}
+.moc-chip.clear-chip{cursor:pointer;font-weight:700}
+.moc-chip.clear-chip:hover{transform:translateY(-1px)}
+
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:12px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);position:relative;overflow:hidden}
+.kpi::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--grey)}
+.kpi.target::before{background:var(--navy)}
+.kpi .lbl{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.kpi .val{font-size:21px;font-weight:900;color:var(--navy);margin-top:4px}
+.kpi .sub{font-size:11px;color:var(--muted);margin-top:4px}
+
+.gkpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+.gkpi{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 14px 6px;box-shadow:var(--shadow);text-align:center;position:relative;overflow:hidden}
+.hdr-mustgain{text-align:right}
+.hdr-mustgain .hmg-lbl{display:block;font-size:10px;font-weight:800;letter-spacing:.5px;color:#B9C6D6}
+.hdr-mustgain .hmg-val{display:block;font-size:28px;font-weight:900;color:var(--orange);line-height:1.15}
+.hdr-mustgain .hmg-sub{display:block;font-size:10.5px;font-weight:600;color:#B9C6D6;margin-top:1px}
+.hdr-mustgain .hmg-sub b{color:#fff}
+.gauge-caption{font-size:10px;color:var(--muted);margin-top:2px}
+.gauge-caption .dash{display:inline-block;width:12px;border-top:2px dashed var(--navy);vertical-align:middle;margin-right:3px}
+.gkpi .lbl{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-bottom:2px}
+.gkpi .gaugewrap{position:relative;height:110px}
+.gkpi .figures{font-size:11px;color:var(--muted);margin-top:-6px}
+.gkpi .figures b{color:var(--navy)}
+
+.badge{display:inline-block;padding:2px 8px;border-radius:20px;font-size:10.5px;font-weight:800}
+.badge.green{background:var(--green-bg);color:var(--green)}
+.badge.red{background:var(--red-bg);color:var(--red)}
+.badge.amber{background:var(--amber-bg);color:var(--amber)}
+.badge.gray{background:#EEF1F5;color:var(--muted)}
+
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px 18px;box-shadow:var(--shadow)}
+.card h3{margin:0 0 3px;font-size:13.5px;color:var(--navy);font-weight:800}
+.card .hint{font-size:11px;color:var(--muted);margin-bottom:10px}
+.chart-wrap{position:relative;height:250px}
+.chart-wrap.tall{height:320px}
+.chart-scroll{overflow-x:auto;overflow-y:hidden;padding-bottom:4px}
+.chart-scroll-inner{position:relative;height:320px}
+.cv-toggle{display:flex;gap:6px;flex-wrap:wrap}
+.cv-btn{border:1px solid var(--line);background:#fff;color:var(--navy);font-size:11px;font-weight:700;padding:5px 10px;border-radius:20px;cursor:pointer;white-space:nowrap;transition:background .1s,color .1s}
+.cv-btn:hover{background:#EEF1F5}
+.cv-btn.active{background:var(--navy);color:#fff;border-color:var(--navy)}
+
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{position:sticky;top:0;background:var(--navy);color:#fff;text-align:left;padding:9px 10px;font-weight:700;font-size:10.6px;text-transform:uppercase;letter-spacing:.3px;cursor:pointer;white-space:nowrap}
+thead th:hover{background:var(--navy-2)}
+tbody td{padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+tbody tr:hover{background:#FFF3EA}
+.tablewrap{max-height:560px;overflow:auto;border:1px solid var(--line);border-radius:10px}
+/* Ads Performance: column-group banding, based on Yes4All brand colors */
+.grp-kpi-hdr{background:#002859 !important}
+.grp-actual-hdr{background:#FF7000 !important}
+.grp-remain-hdr{background:#66707C !important}
+.grp-ach-hdr{background:#B8860B !important}
+.grp-kpi{background:#EDF1F7}
+.grp-actual{background:#FFF3EA}
+.grp-remain{background:#F3F4F6}
+.grp-ach{background:#FBF3DF}
+.progress-cell{display:flex;align-items:center;gap:6px;min-width:90px}
+.progress-track{flex:1;height:6px;background:#EEF1F5;border-radius:4px;overflow:hidden;min-width:50px}
+.progress-fill{height:100%;border-radius:4px}
+.num{text-align:right;font-variant-numeric:tabular-nums}
+.name-cell{max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.tag{font-size:10px;font-weight:800;padding:2px 7px;border-radius:6px;background:#EEF1F5;color:var(--muted)}
+
+/* Diary / Projects */
+.diary-layout{display:grid;grid-template-columns:280px 1fr;gap:16px}
+.group-list{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px;box-shadow:var(--shadow);max-height:680px;overflow:auto}
+.group-item{padding:10px 12px;border-radius:9px;cursor:pointer;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:12.5px;color:var(--ink)}
+.group-item:hover{background:#FFF3EA}
+.group-item.active{background:var(--orange);color:#fff}
+.group-item .cnt{font-size:10.5px;font-weight:800;background:rgba(0,0,0,.08);padding:1px 7px;border-radius:10px}
+.group-item.active .cnt{background:rgba(255,255,255,.25)}
+
+.entry-form{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px 16px;box-shadow:var(--shadow);margin-bottom:10px}
+.entry-form .row{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.entry-form label{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.3px;display:block;margin-bottom:4px}
+.entry-form input, .entry-form select, .entry-form textarea{border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-size:12.5px;font-family:inherit;width:100%}
+.entry-form textarea{resize:vertical;min-height:56px}
+.code-legend{font-size:11px;color:var(--muted);margin-bottom:14px;background:var(--grey);border-radius:9px;padding:9px 13px}
+.code-legend b{color:var(--navy)}
+.entry-list{display:flex;flex-direction:column;gap:10px}
+.entry{background:var(--card);border:1px solid var(--line);border-left:4px solid var(--orange);border-radius:10px;padding:11px 14px;box-shadow:var(--shadow)}
+.entry .hd{display:flex;gap:8px;align-items:center;font-size:11px;color:var(--muted);font-weight:700;margin-bottom:6px;flex-wrap:wrap}
+.entry .txt{font-size:12.8px;color:var(--ink);white-space:pre-wrap;margin-bottom:8px}
+.code-badge{font-size:10px;font-weight:900;padding:2px 8px;border-radius:6px;color:#fff}
+.code-INV{background:var(--navy)} .code-LIS{background:#2563EB} .code-PRC{background:#7C3AED}
+.code-MKT{background:var(--orange)} .code-Others{background:var(--muted)}
+.status-tag{font-size:10px;font-weight:800;padding:2px 8px;border-radius:20px}
+.status-open{background:#EEF1F5;color:var(--muted)} .status-done{background:var(--green-bg);color:var(--green)}
+.status-issue{background:var(--red-bg);color:var(--red)} .status-cancel{background:var(--amber-bg);color:var(--amber)}
+.followup{font-size:11.5px;color:var(--muted);border-left:2px solid var(--line);padding-left:8px;margin:4px 0}
+.entry-actions{display:flex;gap:8px;align-items:center;border-top:1px dashed var(--line);padding-top:8px;margin-top:4px;flex-wrap:wrap}
+.entry-actions select{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:11.5px;font-family:inherit}
+.entry-actions input{border:1px solid var(--line);border-radius:7px;padding:5px 8px;font-size:11.5px;flex:1;min-width:140px;font-family:inherit}
+.empty{color:var(--muted);font-size:12px;padding:22px;text-align:center;background:var(--card);border:1px dashed var(--line);border-radius:10px}
+.notice{background:var(--amber-bg);color:#6B5300;border:1px solid #E9D8A6;border-radius:9px;padding:9px 13px;font-size:11.5px;font-weight:600;margin-bottom:14px;display:flex;gap:8px;align-items:center}
+
+.proj-table td, .proj-table th{white-space:normal;vertical-align:top}
+.proj-table td.cell-log{max-width:360px;font-size:11.5px}
+.proj-table td.cell-log div{margin-bottom:5px;padding-bottom:5px;border-bottom:1px dashed var(--line)}
+.proj-table td.cell-log div:last-child{border-bottom:none}
+.proj-name{font-weight:800;color:var(--navy);width:170px}
+
+@media (max-width:980px){.grid2,.kpis,.gkpis{grid-template-columns:1fr 1fr}.diary-layout{grid-template-columns:1fr}}
+
+/* ===== v2: global search, new tabs ===== */
+nav.tabs{align-items:flex-end;overflow-x:auto;scrollbar-width:thin}
+nav.tabs button{white-space:nowrap;flex:none}
+@media (max-width:760px){.grid2,.kpis,.gkpis{grid-template-columns:minmax(0,1fr)}.issue-grid{grid-template-columns:repeat(auto-fill,minmax(150px,1fr))}nav.tabs{flex-wrap:wrap;padding:8px 12px 0}.gsearch{margin-left:0;width:100%}.gsearch input{width:100%;max-width:none}main{padding:14px 12px 50px}header{padding:14px 12px}.filterbar .fld{min-width:0;flex:1 1 140px}.filterbar select,.filterbar input[type=text]{min-width:0;width:100%}}
+.gsearch{margin-left:auto;position:relative;align-self:center;padding-bottom:8px}
+.gsearch input{border:1px solid var(--line);border-radius:20px;padding:8px 14px 8px 32px;width:320px;max-width:60vw;font-family:inherit;font-size:12.5px;background:#F6F7F8 url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2366707C' stroke-width='2.4'%3E%3Ccircle cx='11' cy='11' r='7'/%3E%3Cpath d='m20 20-3.5-3.5'/%3E%3C/svg%3E") no-repeat 11px center}
+.gsearch input:focus{outline:2px solid var(--orange);background-color:#fff}
+.gs-drop{position:absolute;right:0;top:calc(100% - 4px);width:460px;max-width:92vw;background:#fff;border:1px solid var(--line);border-radius:12px;box-shadow:var(--shadow-lg);z-index:80;max-height:420px;overflow:auto}
+.gs-item{padding:8px 12px;cursor:pointer;display:flex;gap:10px;align-items:baseline;border-bottom:1px solid #F1F2F4;font-size:12.3px}
+.gs-item:hover,.gs-item.hl{background:#FFF3EA}
+.gs-item b{color:var(--navy);min-width:44px}
+.gs-item .asin{color:var(--muted);font-size:11px;min-width:90px}
+.gs-item .nm{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1}
+#gSearchChip{align-self:center;flex:none;padding-bottom:8px}
+.gs-chip{white-space:nowrap;max-width:360px;overflow:hidden;text-overflow:ellipsis;display:inline-flex;align-items:center;gap:8px;background:var(--orange);color:#fff;border-radius:20px;padding:5px 6px 5px 12px;font-weight:700;font-size:11.5px;margin-left:8px}
+.gs-chip button{border:0;background:rgba(255,255,255,.25);color:#fff;border-radius:50%;width:20px;height:20px;cursor:pointer;font-weight:900}
+.v2-note{font-size:11.5px;color:var(--muted)}
+.tiles{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px;margin-bottom:14px}
+.tile{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:10px 12px 8px;box-shadow:var(--shadow);min-width:0}
+.tile .k{font-size:10px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px}
+.tile .v{font-size:18px;font-weight:900;color:var(--navy);font-variant-numeric:tabular-nums;margin-top:2px}
+.tile .d{font-size:11px;color:var(--muted);display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:2px}
+.tile svg{width:100%;height:26px;display:block;margin-top:4px}
+.dl{font-weight:800;border-radius:6px;padding:0 5px;font-size:10.5px}
+.dl.up{color:var(--green);background:var(--green-bg)} .dl.down{color:var(--red);background:var(--red-bg)} .dl.flat{color:var(--muted);background:#EEF1F5}
+.chipbar{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
+.chipbar .lbl2{font-size:10.5px;font-weight:800;color:var(--muted);text-transform:uppercase;letter-spacing:.4px;margin-right:2px}
+.plot{width:100%;min-height:300px}
+.plot.tall{min-height:420px}
+.plot.xl{min-height:520px}
+.grid-7-5{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:14px;margin-bottom:16px}
+.grid-8-4{display:grid;grid-template-columns:minmax(0,8fr) minmax(0,4fr);gap:14px;margin-bottom:16px}
+@media (max-width:1100px){.grid-7-5,.grid-8-4{grid-template-columns:minmax(0,1fr)}}
+.card{margin-bottom:16px;min-width:0}
+.corr{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.corr .box{border:1px solid var(--line);border-radius:10px;padding:8px 12px;background:#F7F8FA;min-width:110px}
+.corr .box .v{font-size:18px;font-weight:900;color:var(--navy);font-variant-numeric:tabular-nums}
+.corr .box .t{font-size:10.5px;color:var(--muted)}
+.readout{background:#F7F8FA;border-left:3px solid var(--orange);border-radius:8px;padding:9px 12px;font-size:12px}
+tr.sel td{background:#FFF3EA}
+tr.clickable{cursor:pointer}
+tr.sub td{background:#FAFBFC;font-size:11.5px}
+tr.sub td:first-child{padding-left:28px}
+.rec{display:inline-block;font-size:10.5px;font-weight:700;border-radius:6px;padding:1px 7px;margin:1px 2px 1px 0;white-space:nowrap}
+.rec.p1{background:var(--red-bg);color:var(--red)} .rec.p2{background:var(--amber-bg);color:var(--amber)} .rec.p3{background:#EEF1F5;color:var(--muted)} .rec.ok{background:var(--green-bg);color:var(--green)}
+.lockbar{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));border:1px solid var(--line);border-radius:12px;overflow:hidden;background:#fff;margin-bottom:14px}
+.lockbar .step{padding:9px 13px;border-right:1px solid var(--line);display:flex;flex-direction:column;gap:1px}
+.lockbar .step:last-child{border-right:0}
+.lockbar .step .when{font-weight:800;color:var(--navy);font-size:12.5px}
+.lockbar .step.done{background:#F7F8FA}
+.lockbar .step.now{box-shadow:inset 0 -3px 0 var(--orange)}
+.review-layout{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(0,1fr);gap:14px;align-items:start}
+@media (max-width:1100px){.review-layout,.lockbar{grid-template-columns:minmax(0,1fr)}}
+.editor-card{position:sticky;top:70px}
+.editor-card textarea{width:100%;min-height:90px;border:1px solid var(--line);border-radius:8px;padding:8px 10px;font-family:inherit;font-size:12.5px;resize:vertical}
+.editor-card select{border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-family:inherit;font-size:12.5px;width:100%}
+.parsed{display:flex;flex-direction:column;gap:5px;margin:8px 0}
+.parsed .it{display:flex;gap:7px;align-items:flex-start;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:5px 8px;background:#F7F8FA}
+.parsed .it .meta{margin-left:auto;color:var(--muted);font-size:11px;white-space:nowrap}
+.rv-full{border:1px solid var(--line);border-radius:10px;padding:9px 12px;margin:8px 0;background:#fff}.rv-full.miss{background:#FFF6F6;border-style:dashed}
+.rv-h{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.rv-h .btn{margin-left:auto}
+.rv-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}.rv-tx{white-space:pre-wrap;font-size:12.6px;line-height:1.55;background:#F7F9FB;border-radius:8px;padding:7px 9px}
+@media (max-width:760px){.rv-cols{grid-template-columns:1fr}}
+.codeb{font-size:9.5px;font-weight:900;border-radius:5px;padding:1px 6px;color:#fff;white-space:nowrap}
+.codeb.INV{background:#2a78d6}.codeb.LIS{background:#eb6834}.codeb.PRC{background:#1baf7a}.codeb.MKT{background:#eda100}.codeb.Others{background:#e87ba4}
+.board{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+@media (max-width:900px){.board{grid-template-columns:minmax(0,1fr)}}
+.bcol{background:#F7F8FA;border:1px solid var(--line);border-radius:10px;padding:10px;display:flex;flex-direction:column;gap:8px;min-width:0;max-height:560px;overflow:auto}
+.bcol h4{margin:0;font-size:12.5px;display:flex;justify-content:space-between;color:var(--navy)}
+.act{background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px 9px;font-size:12px}
+.act .foot{display:flex;gap:6px;align-items:center;flex-wrap:wrap;color:var(--muted);font-size:11px;margin-top:3px}
+.act .foot .btn{margin-left:auto}
+.skutag{font:600 10.5px ui-monospace,Menlo,Consolas,monospace;background:#fff;border:1px solid var(--line);border-radius:4px;padding:0 4px}
+.ai-box{background:#F4F7FC;border:1px solid #D6E0F0;border-radius:10px;padding:10px 12px;font-size:12.5px;white-space:pre-wrap;margin-top:8px;max-height:420px;overflow:auto}
+.v2-modal{position:fixed;inset:0;background:rgba(0,20,45,.45);z-index:200;display:flex;align-items:flex-start;justify-content:center;padding:40px 16px;overflow:auto}
+.v2-modal .panel{background:#fff;border-radius:14px;max-width:1100px;width:100%;padding:18px 20px;box-shadow:var(--shadow-lg)}
+.v2-modal .panel .x{float:right;border:0;background:#EEF1F5;border-radius:50%;width:30px;height:30px;cursor:pointer;font-size:16px}
+.issue-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:8px}
+.issue{border:1px solid var(--line);border-radius:10px;padding:8px 11px;cursor:pointer;background:#fff;display:flex;flex-direction:column;gap:2px}
+.issue:hover{border-color:var(--orange)}
+.issue.active{box-shadow:0 0 0 2px var(--orange) inset}
+.issue .n{font-size:19px;font-weight:900}
+.issue .t{font-size:11.5px;font-weight:700;color:var(--ink)}
+.issue .s{font-size:10.5px;color:var(--muted)}
+.doc-table td,.doc-table th{white-space:nowrap}
+.src-tag{font-size:9.5px;font-weight:800;border-radius:5px;padding:1px 5px;background:#EEF1F5;color:var(--muted);margin-left:4px}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="mark"><img src="assets/logo.png" alt="Yes4All"></div>
+    <div>
+      <h1>SSO Sales Dashboard</h1>
+      <div class="sub">Amazon US &middot; SSO &middot; Tổng hợp tất cả team &middot; Vendor + Seller Central</div>
+    </div>
+  </div>
+  <div class="meta">
+    <span class="pill" id="hdrAsOf">As of --</span>
+    <div class="hdr-mustgain">
+      <span class="hmg-lbl">Today must gain (GMV)</span>
+      <span class="hmg-val" id="hdrMustGain">$--</span>
+      <span class="hmg-sub" id="hdrMktStatus"></span>
+    </div>
+  </div>
+</header>
+
+<nav class="tabs">
+  <button class="tab-btn active" data-tab="sales">Tracking Target</button>
+  <button class="tab-btn" data-tab="sp">Sales Performance</button>
+  <button class="tab-btn" data-tab="perf">Product Performance</button>
+  <div class="gsearch">
+    <input type="text" id="gSearch" placeholder="Tìm nhanh SKU / ASIN / tên sản phẩm…" autocomplete="off" aria-label="Tìm nhanh SKU, ASIN hoặc tên sản phẩm">
+    <div class="gs-drop" id="gSearchDrop" hidden></div>
+  </div>
+  <span id="gSearchChip"></span>
+</nav>
+
+<main>
+
+<!-- ======================= TAB 1: SALES PERFORMANCE ======================= -->
+<section id="view-sales" class="view active">
+
+  <div id="liveRace"></div>
+
+  <div class="filterbar">
+    <div class="fld"><label>Month</label><select id="fMonth"></select></div>
+    <div class="fld"><label>Team</label><select id="fTeam"><option value="">All</option></select></div>
+    <div class="fld"><label>Leader</label><select id="fLeader"><option value="">All</option></select></div>
+    <div class="fld"><label>PIC</label><select id="fPic"><option value="">All</option></select></div>
+    <div class="fld"><label>Main PL</label><select id="fMainPL"><option value="">All</option></select></div>
+    <div class="fld"><label>Sub PL</label><select id="fSubPL"><option value="">All</option></select></div>
+    <div class="fld"><label>Channel</label><select id="fChannel"><option value="">All</option></select></div>
+    <div class="fld"><label>Portfolio</label><select id="fPortfolio"><option value="">All</option></select></div>
+    <div class="fld"><label>Search SKU / Name</label><input type="text" id="fSearch" placeholder="e.g. DAT7, dumbbell..."></div>
+    <div class="fld"><label>From date</label><input type="date" id="fDateFrom"></div>
+    <div class="fld"><label>To date</label><input type="date" id="fDateTo"></div>
+    <div class="fld"><label>&nbsp;</label><label style="display:flex;align-items:center;gap:6px;font-size:12.5px;font-weight:600;color:var(--ink);cursor:pointer;padding:7px 0"><input type="checkbox" id="fExcludeSpt"> Exclude SPT channel</label></div>
+    <button class="btn" id="btnReset">Reset filters</button>
+    <span class="result-count" id="resultCount"></span>
+  </div>
+
+  <div class="moc-strip" id="mocStrip"></div>
+  <div class="grid2" style="align-items:start">
+    <div class="card" id="docStatsCard" style="margin:0"></div>
+    <div class="card" id="issueCard" style="margin:0"></div>
+  </div>
+
+  <div class="section-title" id="targetSectionTitle">Target &mdash; Aug-26 (full month)</div>
+  <div class="kpis" id="kpiTargetRow"></div>
+
+  <div class="section-title" id="actualSectionTitle">Actual &mdash; Month-to-date (with run-rate projection)</div>
+  <div class="gkpis" id="kpiActualRow"></div>
+
+  <div class="section-title" id="cm3SectionTitle">Profitability &mdash; CM3 (ước tính)</div>
+  <div class="kpis" id="kpiCm3Row"></div>
+
+  <div class="card">
+    <h3 style="margin:0 0 4px">Team Progress</h3>
+    <div class="hint">Một dòng cho mỗi Team (Leader). Bấm tên Team để lọc toàn tab theo team đó (bấm lại để bỏ lọc). Màu xanh/vàng/đỏ theo cùng ngưỡng pace với các gauge phía trên. CM3 % tính trên GMV của các SKU đã có cost stack (cột “% GMV có cost”).</div>
+    <div class="tablewrap">
+      <table id="teamProgressTable">
+        <thead><tr>
+          <th data-k="name">Team</th>
+          <th data-k="leader">Leader</th>
+          <th data-k="picCount" class="num">PIC</th>
+          <th data-k="skuCount" class="num">SKU</th>
+          <th data-k="targetGMV" class="num">GMV Target</th>
+          <th data-k="actualGMV" class="num">GMV Actual</th>
+          <th data-k="gmvProgressPct" class="num">% Progress</th>
+          <th data-k="gmvRunratePct" class="num">Run-rate %</th>
+          <th data-k="gmvRemaining" class="num">Remaining $</th>
+          <th data-k="mktTarget" class="num">MKT Target</th>
+          <th data-k="mktActual" class="num">MKT Actual</th>
+          <th data-k="targetMktGmvPct" class="num">Target MKT/GMV%</th>
+          <th data-k="currentMktGmvPct" class="num">Current MKT/GMV%</th>
+          <th data-k="tacos" class="num">TACOS</th>
+          <th data-k="actualUnits" class="num">Units</th>
+          <th data-k="cm3Target" class="num">CM3 Target</th>
+          <th data-k="cm3" class="num">CM3 $</th>
+          <th data-k="cm3Pct" class="num">CM3 %</th>
+          <th data-k="costedPct" class="num">% GMV có cost</th>
+        </tr></thead>
+        <tbody id="teamProgressTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 4px">PIC Progress</h3>
+    <div class="hint">Click a column header to sort (default: highest GMV target first). Click a PIC name to filter the whole tab. Green/amber/red on Actual-side metrics follow the same ahead/on-track/behind pace bands used in the gauges above; MKT/GMV% coloring is lower-is-better (more efficient than planned).</div>
+    <div class="tablewrap">
+      <table id="picProgressTable">
+        <thead><tr>
+          <th data-k="name">PIC</th>
+          <th data-k="team">Team</th>
+          <th data-k="leader">Leader</th>
+          <th data-k="targetGMV" class="num">GMV Target</th>
+          <th data-k="actualGMV" class="num">GMV Actual</th>
+          <th data-k="gmvProgressPct" class="num">% Progress</th>
+          <th data-k="gmvRunratePct" class="num">Run-rate %</th>
+          <th data-k="gmvRemaining" class="num">Remaining $</th>
+          <th data-k="mktTarget" class="num">MKT Target</th>
+          <th data-k="mktActual" class="num">MKT Actual</th>
+          <th data-k="mktSpentPct" class="num">% Spent</th>
+          <th data-k="targetMktGmvPct" class="num">Target MKT/GMV%</th>
+          <th data-k="currentMktGmvPct" class="num">Current MKT/GMV%</th>
+          <th data-k="adsTarget" class="num">Ads Budget</th>
+          <th data-k="adsActual" class="num">Ads Spent $</th>
+          <th data-k="promoTarget" class="num">Promo Budget</th>
+          <th data-k="promoSpentPct" class="num">% Spent Promo</th>
+          <th data-k="cm3" class="num">CM3 $</th>
+          <th data-k="cm3Pct" class="num">CM3 %</th>
+        </tr></thead>
+        <tbody id="picProgressTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 4px">Product Line Progress</h3>
+    <div class="hint">Click a column header to sort (default: highest GMV target first) &middot; Click a row to filter the SKU Breakdown table below to that Product Line. % STR (Sell-Through Rate) = Actual Units Sold ÷ (Actual Units Sold + current on-hand inventory) — a proxy since we don't keep a beginning-of-month inventory snapshot. MKT/GMV = Marketing fee (Ads + Promo) as a % of GMV; lower vs target is better.</div>
+    <div class="tablewrap">
+      <table id="plProgressTable">
+        <thead><tr>
+          <th data-k="name">Product Line</th>
+          <th data-k="targetGMV" class="num">Target GMV</th>
+          <th data-k="actualGMV" class="num">Actual GMV</th>
+          <th data-k="gmvProgressPct" class="num">% Progress GMV</th>
+          <th data-k="gmvRunratePct" class="num">% Run-rate GMV</th>
+          <th data-k="targetMktGmvPct" class="num">Target MKT/GMV</th>
+          <th data-k="actualMktGmvPct" class="num">Actual MKT/GMV</th>
+          <th data-k="mktGmvProgressPct" class="num">% Progress MKT/GMV</th>
+          <th data-k="strPct" class="num">% STR</th>
+          <th data-k="cm3" class="num">CM3 $</th>
+          <th data-k="cm3Pct" class="num">CM3 %</th>
+        </tr></thead>
+        <tbody id="plProgressTbody"></tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:6px">
+      <h3 style="margin:0">Daily Trends</h3>
+      <div class="cv-toggle" id="dailyChartToggle">
+        <button class="cv-btn active" data-view="gmvMkt">GMV &amp; MKT Fee</button>
+        <button class="cv-btn" data-view="gmvBreakdown">Organic vs Ads GMV</button>
+        <button class="cv-btn" data-view="spend">Ads vs Promo Spend</button>
+        <button class="cv-btn" data-view="units">Units Sold</button>
+        <button class="cv-btn" data-view="glance">Glance View &amp; Conversion Rate</button>
+      </div>
+      <div class="cv-toggle" id="dailyGrainToggle"><button class="cv-btn active" data-grain="day" type="button">Ngày</button><button class="cv-btn" data-grain="week" type="button">Tuần</button></div>
+    </div>
+    <div class="hint" id="dailyChartHint">Columns = GMV per day &middot; Line = total Marketing fee (Ads + Promo) per day &middot; Scroll horizontally on long months</div>
+    <div id="dailyPlot" class="plot tall"></div>
+    <div class="chart-scroll" id="dailyChartLegacy" hidden><div class="chart-scroll-inner" id="chartDailyInner"><canvas id="chartDaily"></canvas></div></div>
+  </div>
+
+  <div class="card">
+    <h3 style="margin:0 0 4px">Action Code Summary</h3>
+    <div class="hint">Rule-based diagnostics across the filtered SKUs (same trend/DOC/ads data as the Product Performance tab). Click a code to filter the table below to those SKUs; open Product Performance for the full detail + suggested action per SKU.</div>
+    <div class="moc-strip" id="actionCodeStrip" style="margin-bottom:0"></div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <h3 style="margin:0">SKU Breakdown</h3>
+      <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#66707C;cursor:pointer">
+          <input type="checkbox" id="qfInvPositive"> Inv &gt; 0
+        </label>
+        <label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#66707C;cursor:pointer">
+          <input type="checkbox" id="qfRunratePositive"> GMV Run-rate &ne; 0
+        </label>
+        <button class="btn small" id="btnExportSku" title="Export the table below (current filters/sort) to Excel">&#128190; Export to Excel</button>
+      </div>
+    </div>
+    <div class="hint">Click a column header to sort. Table reflects the filters above, plus the Inventory Health bucket and/or Action Code selected up top (if any). Inv = salable inventory units. DOC (Days of Cover) = (Inv Y4A + Inv AMZ) ÷ trailing 7-day avg units/day — hover a DOC badge for velocity + projected stockout date.</div>
+    <div class="hint" id="skuGvNote" hidden style="color:#B8860B;font-weight:600"></div>
+    <div class="tablewrap">
+      <table id="skuTable">
+        <thead><tr>
+          <th data-k="team">Team</th>
+          <th data-k="leader">Leader</th>
+          <th data-k="pic">PIC</th>
+          <th data-k="mainPL">Main PL</th>
+          <th data-k="subPL">Sub PL</th>
+          <th data-k="sku">SKU</th>
+          <th data-k="productName">Product Name</th>
+          <th data-k="channel">Channel</th>
+          <th data-k="portfolio">Portfolio</th>
+          <th data-k="docDays">DOC (days)</th>
+          <th data-k="salableY4A" class="num">Inv Y4A</th>
+          <th data-k="salableAMZ" class="num">Inv AMZ</th>
+          <th data-k="targetGMV" class="num">Target GMV</th>
+          <th data-k="actualGMV" class="num">Actual GMV</th>
+          <th data-k="gmvRunratePct">GMV Run-rate</th>
+          <th data-k="mktTarget" class="num">Target MKT $</th>
+          <th data-k="mktActual" class="num">Actual MKT $</th>
+          <th data-k="mktRunratePct">MKT Run-rate</th>
+          <th data-k="targetUnits" class="num">Target Units</th>
+          <th data-k="actualUnits" class="num">Actual Units</th>
+          <th data-k="cm3" class="num">CM3 $</th>
+          <th data-k="cm3Pct" class="num">CM3 %</th>
+          <th>Action gợi ý</th>
+          <th data-k="glanceViews" class="num" title="Tổng glance views trong khoảng thời gian đang lọc">Glance views</th>
+          <th data-k="cr" class="num" title="CR = units của những ngày có glance view ÷ glance views">CR</th>
+        </tr></thead>
+        <tbody id="skuTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= TAB: PRODUCT PERFORMANCE ======================= -->
+<section id="view-perf" class="view">
+
+  <div class="filterbar">
+    <div class="fld"><label>Team</label><select id="perfFTeam"><option value="">All</option></select></div>
+    <div class="fld"><label>Leader</label><select id="perfFLeader"><option value="">All</option></select></div>
+    <div class="fld"><label>PIC</label><select id="perfFPic"><option value="">All</option></select></div>
+    <div class="fld"><label>Main PL</label><select id="perfFMainPL"><option value="">All</option></select></div>
+    <div class="fld"><label>Lifecycle</label><select id="perfFLifecycle"><option value="">All</option></select></div>
+    <div class="fld"><label>Trend</label>
+      <select id="perfFTrend">
+        <option value="">All</option>
+        <option value="Declining">Declining</option>
+        <option value="Stable">Stable</option>
+        <option value="Growing">Growing</option>
+        <option value="N/A">Not enough data yet</option>
+      </select>
+    </div>
+    <button class="btn" id="perfBtnReset">Reset filters</button>
+    <span class="result-count" id="perfResultCount"></span>
+  </div>
+
+  <div class="filterbar" id="perfPeriodBar"></div>
+  <div class="moc-strip" id="perfKpiStrip"></div>
+  <div id="perfV3"></div>
+
+  <div class="card">
+    <h3 style="margin:0 0 4px">Top Movers — GMV, trailing 7 days vs prior 7 days</h3>
+    <div class="hint">Ranked by dollar change between the two most recent 7-day windows of sales history (reaches back into the prior month if needed, so this works from day 1 of a new month too). Shows N/A only for a SKU with no sales history at all yet.</div>
+    <div style="display:flex;gap:16px;flex-wrap:wrap;margin-top:10px">
+      <div style="flex:1;min-width:340px">
+        <h4 style="margin:0 0 6px;color:var(--red);font-size:13px;font-weight:800">▼ Biggest Decliners</h4>
+        <div class="tablewrap"><table>
+          <thead><tr><th>SKU</th><th>Product Name</th><th>PIC</th><th class="num">Prior 7d</th><th class="num">Last 7d</th><th class="num">Δ $</th><th class="num">Δ %</th></tr></thead>
+          <tbody id="perfDeclinersBody"></tbody>
+        </table></div>
+      </div>
+      <div style="flex:1;min-width:340px">
+        <h4 style="margin:0 0 6px;color:var(--green);font-size:13px;font-weight:800">▲ Biggest Growers</h4>
+        <div class="tablewrap"><table>
+          <thead><tr><th>SKU</th><th>Product Name</th><th>PIC</th><th class="num">Prior 7d</th><th class="num">Last 7d</th><th class="num">Δ $</th><th class="num">Δ %</th></tr></thead>
+          <tbody id="perfGrowersBody"></tbody>
+        </table></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap">
+      <h3 style="margin:0">Product Performance Detail</h3>
+      <div style="display:flex;gap:12px;align-items:center"><label style="display:flex;align-items:center;gap:5px;font-size:12px;font-weight:600;color:#66707C;cursor:pointer"><input type="checkbox" id="perfHideNoData" checked> Ẩn SKU không có data</label>
+      <button class="btn small" id="btnExportPerf" title="Export the table below (current filters/sort) to Excel">&#128190; Export to Excel</button></div>
+    </div>
+    <div class="hint">Click a column header to sort. Reflects the filters above, plus the Product Health bucket selected up top (if any). Trend = trailing 7-day vs prior 7-day GMV. Suggested Action is a rule-based flag (stock risk first, then trend, then ads efficiency) — a starting point, not a final call.</div>
+    <div class="tablewrap">
+      <table id="perfTable">
+        <thead><tr>
+          <th data-k="team">Team</th>
+          <th data-k="pic">PIC</th>
+          <th data-k="mainPL">Main PL</th>
+          <th data-k="sku">SKU</th>
+          <th data-k="productName">Product Name</th>
+          <th data-k="trendPct">Trend (7d vs prior)</th>
+          <th data-k="docDays">DOC</th>
+          <th data-k="tacos" class="num">TACOS</th>
+          <th data-k="adsActual" class="num">Ads Spend (MTD)</th>
+          <th data-k="actualGMV" class="num">GMV (MTD)</th>
+          <th data-k="cm3" class="num">CM3 $</th>
+          <th data-k="cm3Pct" class="num">CM3 %</th>
+          <th>Suggested Action</th>
+        </tr></thead>
+        <tbody id="perfTbody"></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ======================= v2 TABS (rendered by v2.js) ======================= -->
+<section id="view-sp" class="view" aria-label="Sales Performance"></section>
+
+</main>
+
+<!-- v2 modules: must load before the main script so boot() can call V2 hooks -->
+<script src="team_map.js"></script>
+<script src="v2.js"></script>
+<script src="v3.js"></script>
+<script>
+// =====================================================================
+// SUPABASE CONFIG — fill these in from your project (Settings -> API),
+// then reload this file in the browser. The anon key is meant to be
+// public (protected by Row Level Security) — never put the service_role
+// key here or in GitHub.
+// =====================================================================
+const SUPABASE_URL = 'https://jrajadhmnvvmytmufgjz.supabase.co';   // project: SSO Sales Dashboard
+const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpyYWphZGhtbnZ2bXl0bXVmZ2p6Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTEzNDIzMTAsImV4cCI6MjEwNjkxODMxMH0.cn838OKTb38XhV_tByUsfxiz6zx34uoaRCGJP22_eBk';   // Settings -> API -> anon / publishable key
+
+function showFatalBanner(msg){
+  document.body.innerHTML = `<div style="max-width:640px;margin:80px auto;padding:28px;font-family:Calibri, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif;background:#fff;border:1px solid #E4E5E6;border-radius:14px;box-shadow:0 10px 30px rgba(0,40,89,.14)">
+    <h2 style="color:#002859;margin-top:0">Dashboard not connected</h2>
+    <p style="color:#66707C;font-size:13px;line-height:1.7">${msg}</p>
+  </div>`;
+}
+
+if(SUPABASE_URL.startsWith('YOUR_') || SUPABASE_ANON_KEY.startsWith('YOUR_')){
+  showFatalBanner('Open this file in a text editor and set <b>SUPABASE_URL</b> and <b>SUPABASE_ANON_KEY</b> near the top of the &lt;script&gt; section (found in your Supabase project under Settings &rarr; API), then reload this page.');
+  throw new Error('Supabase not configured');
+}
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let DATA = { asOfDate: null, daysElapsed: 0, daysInMonth: 30 };
+let ROWS = [];
+let PICS = [];
+
+function monthLabel(iso){
+  const [y,m] = iso.split('-');
+  const names = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  return names[+m-1] + '-' + y.slice(2);
+}
+function daysInMonthOf(iso){
+  const [y,m] = iso.split('-').map(Number);
+  return new Date(y, m, 0).getDate();
+}
+function addMonthsIso(iso, n){
+  const [y,m] = iso.split('-').map(Number);
+  const d = new Date(y, m-1+n, 1);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-01';
+}
+function addDaysIso(iso, n){
+  const d = new Date(iso+'T00:00:00');
+  d.setDate(d.getDate()+n);
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+
+// ---- Team / Leader (team_map.js) --------------------------------------
+const NO_TEAM = 'Chưa gán team', NO_LEADER = 'Chưa gán leader';
+const NO_LEADER_TEAMS = ['Spreetail'];   // partner-managed teams without a leader
+const normName = s => String(s||'').trim().replace(/\s+/g,' ').toLowerCase();
+const TEAM_LOOKUP = new Map(Object.entries(window.TEAM_MAP||{}).map(([pic, o])=>[normName(pic), o||{}]));
+function orgOf(sk){
+  const m = TEAM_LOOKUP.get(normName(sk.pic)) || {};
+  const team = sk.team || m.team || NO_TEAM;
+  return { team, leader: sk.leader || m.leader || (NO_LEADER_TEAMS.includes(team) ? 'Không có leader' : NO_LEADER) };
+}
+// Fills Leader (narrowed by Team) and PIC (narrowed by Team + Leader),
+// keeping the current choice when it is still available.
+function cascadeOrgSelects(rows, teamId, leaderId, picId){
+  const teamSel = document.getElementById(teamId);
+  if(teamSel.options.length <= 1) fillSelect(teamId, uniqFrom(rows, 'team'));
+  const team = teamSel.value;
+  const byTeam = team ? rows.filter(r=>r.team===team) : rows;
+  fillSelectPreserve(leaderId, uniqFrom(byTeam, 'leader'), document.getElementById(leaderId).value);
+  const leader = document.getElementById(leaderId).value;
+  const byLeader = leader ? byTeam.filter(r=>r.leader===leader) : byTeam;
+  fillSelectPreserve(picId, uniqFrom(byLeader, 'pic'), document.getElementById(picId).value);
+  return byLeader;
+}
+function resetTeamSelect(id){ document.getElementById(id).innerHTML = '<option value="">All</option>'; }
+
+// ---- CM3 (estimate) ---------------------------------------------------
+// Same formula as the Sales Performance tab (v2 withCm3): CM3 per unit
+// before marketing (skus.cm3_unit_base, V9.8 cost stack) x units, minus
+// Ads x 0.985 + Promo (SPT lane: no marketing deduction). SKUs without a
+// cost stack return null and are left out of CM3 % (cm3Gmv = GMV with cost).
+function cm3Of(r){
+  if(r.cm3Base === null || r.cm3Base === undefined || !Number.isFinite(+r.cm3Base)) return null;
+  const mkt = r.cm3Lane === 'SPT' ? 0 : (r.adsActual||0)*0.985 + (r.promoActual||0);
+  return (r.actualUnits||0) * r.cm3Base - mkt;
+}
+function cm3Totals(rows){
+  let cm3 = 0, cm3Gmv = 0, costed = 0, cm3Target = 0, cm3TargetGmv = 0;
+  rows.forEach(r=>{ const c = cm3Of(r); if(c !== null){ cm3 += c; cm3Gmv += r.actualGMV||0; costed++; }
+    if(r.cm3Target !== null && r.cm3Target !== undefined){ cm3Target += r.cm3Target; cm3TargetGmv += r.targetGMV||0; } });
+  return { cm3, cm3Gmv, cm3Pct: cm3Gmv ? cm3/cm3Gmv*100 : null, costed, cm3Target, cm3TargetPct: cm3TargetGmv ? cm3Target/cm3TargetGmv*100 : null };
+}
+const fmtPctOrDash = (v, d=1) => v === null || v === undefined || !Number.isFinite(v) ? '—' : v.toFixed(d) + '%';
+const cm3Color = p => p === null || p === undefined ? 'var(--muted)' : p < 0 ? COLOR.red : p < 5 ? COLOR.amber : COLOR.green;
+
+// Supabase/PostgREST caps every query at 1000 rows by default. sales_daily
+// alone can exceed that within a single month (171 SKUs x 31 days), so any
+// query against skus/targets_monthly/sales_daily must page through with
+// .range() or rows silently go missing (this bit us: Aug data was short by
+// ~150 rows, scattered across several days, until this fix).
+async function fetchAllRows(makeQuery){
+  const pageSize = 1000;
+  let from = 0;
+  let all = [];
+  while(true){
+    const {data, error} = await makeQuery().range(from, from+pageSize-1);
+    if(error) throw error;
+    all = all.concat(data||[]);
+    if(!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+  return all;
+}
+
+async function fetchMonths(){
+  const data = await fetchAllRows(()=> sb.from('targets_monthly').select('month').order('month', {ascending:true}));
+  return [...new Set((data||[]).map(r=>r.month))];
+}
+
+// Loads skus + targets_monthly (for monthIso) + sales_daily (within that
+// calendar month) and builds the same ROWS/DATA shape the rest of the
+// dashboard already expects.
+async function loadMonth(monthIso){
+  const nextMonth = addMonthsIso(monthIso, 1);
+  // Extra 13 days *before* the selected month, fetched only so Trend (below)
+  // can compare two full 7-day windows even during the first ~2 weeks of a
+  // new month, instead of going dark every month until day 14. Not merged
+  // into `daily` — charts/DOC/date-range filters stay scoped to the selected
+  // month exactly as before.
+  const trendLookbackStart = addDaysIso(monthIso, -13);
+
+  const [skus, targets, sales, prevSales] = await Promise.all([
+    fetchAllRows(()=> sb.from('skus').select('*')),
+    fetchAllRows(()=> sb.from('targets_monthly').select('*').eq('month', monthIso)),
+    fetchAllRows(()=> sb.from('sales_daily').select('*').gte('date', monthIso).lt('date', nextMonth)),
+    fetchAllRows(()=> sb.from('sales_daily').select('sku,date,gmv').gte('date', trendLookbackStart).lt('date', monthIso)),
+  ]);
+
+  const targetBySku = {}; (targets||[]).forEach(t=>{ targetBySku[t.sku] = t; });
+  const salesBySku = {};
+  (sales||[]).forEach(s=>{
+    const arr = (salesBySku[s.sku] = salesBySku[s.sku] || []);
+    arr.push(s);
+  });
+  const prevSalesBySku = {};
+  (prevSales||[]).forEach(s=>{
+    const arr = (prevSalesBySku[s.sku] = prevSalesBySku[s.sku] || []);
+    arr.push({date:s.date, gmv:s.gmv||0});
+  });
+
+  let maxDate = null;
+  (sales||[]).forEach(s=>{ if(!maxDate || s.date > maxDate) maxDate = s.date; });
+  const asOfDate = maxDate || monthIso;
+  const daysElapsed = +asOfDate.slice(8,10);
+  const daysInMonth = daysInMonthOf(monthIso);
+
+  const rows = (skus||[]).map(sk=>{
+    const t = targetBySku[sk.sku] || {};
+    const dailyRows = (salesBySku[sk.sku] || []).slice().sort((a,b)=>a.date.localeCompare(b.date));
+    const daily = dailyRows.map(d=>({date:d.date, units:d.units, gmv:d.gmv, ads:d.ads, promo:d.promo, mkt:+(d.ads+d.promo).toFixed(2), adsGmv:d.ads_gmv||0, adsUnits:d.ads_units||0, clicks:d.total_clicks||0, impressions:d.total_impressions||0, glanceViews:d.glance_views||0}));
+
+    const actualUnits = +daily.reduce((s,d)=>s+d.units,0).toFixed(2);
+    const actualGMV = +daily.reduce((s,d)=>s+d.gmv,0).toFixed(2);
+    const adsActual = +daily.reduce((s,d)=>s+d.ads,0).toFixed(2);
+    const promoActual = +daily.reduce((s,d)=>s+d.promo,0).toFixed(2);
+    const mktActual = +(adsActual+promoActual).toFixed(2);
+
+    const targetUnits = t.target_units || 0;
+    const targetGMV = t.target_gmv || 0;
+    const cm3Target = t.cm3_target === null || t.cm3_target === undefined ? null : +t.cm3_target;
+    const adsTarget = t.ads_target || 0;
+    const promoTarget = t.promo_target || 0;
+    const mktTarget = +(adsTarget+promoTarget).toFixed(2);
+
+    const gmvRunrateProj = daysElapsed ? actualGMV/daysElapsed*daysInMonth : 0;
+    const gmvRunratePct = targetGMV ? +(gmvRunrateProj/targetGMV*100).toFixed(1) : 0;
+    const mktRunrateProj = daysElapsed ? mktActual/daysElapsed*daysInMonth : 0;
+    const mktRunratePct = mktTarget ? +(mktRunrateProj/mktTarget*100).toFixed(1) : 0;
+
+    // DOC (Days of Cover) — replaces the old static MOC Band. Velocity is the
+    // trailing-7-calendar-day average units/day ending at DATA.asOfDate (the
+    // freshest date actually loaded for this month; if fewer than 7 days of
+    // this month's data exist yet, e.g. the first few days of a new month,
+    // the window shrinks to whatever days are available rather than reaching
+    // into the prior month). DOC = total salable inventory / that velocity.
+    const totalInv = (sk.salable_y4a || 0) + (sk.salable_amz || 0);
+    const docWindowDays = Math.min(7, daysElapsed || 0);
+    let docVelocity = 0;
+    if(docWindowDays > 0){
+      const winStart = addDaysIso(asOfDate, -(docWindowDays - 1));
+      const winUnits = daily.filter(d=> d.date >= winStart && d.date <= asOfDate).reduce((s,d)=>s+d.units, 0);
+      docVelocity = winUnits / docWindowDays;
+    }
+    let docDays = null;       // null = N/A, Infinity = no recent sales but has stock, else a number
+    let docBand = 'N/A';
+    if(daily.length === 0){
+      docDays = null; docBand = 'N/A';
+    } else if(totalInv <= 0){
+      docDays = 0; docBand = 'OOS';
+    } else if(docVelocity <= 0){
+      docDays = Infinity; docBand = 'DOC >90d';
+    } else {
+      docDays = totalInv / docVelocity;
+      docBand = docDays < 14 ? 'DOC <14d' : docDays < 30 ? 'DOC 14–30d' : docDays < 90 ? 'DOC 30–90d' : 'DOC >90d';
+    }
+    const stockoutDate = Number.isFinite(docDays) && docDays > 0 ? addDaysIso(asOfDate, Math.round(docDays)) : null;
+
+    // Trend (Product Performance tab): trailing-7-day GMV vs the preceding
+    // 7-day window. Uses this month's daily data PLUS the trailing-13-days
+    // lookback fetched above, so the two 7-day windows are real calendar
+    // windows ending at asOfDate — available from day 1 of a new month
+    // (reaching back into the prior month) instead of going N/A until day 14
+    // every single month. Only stays N/A if there's no data at all yet
+    // covering either window (e.g. a brand-new SKU with zero sales history).
+    let trailing7Gmv = null, prior7Gmv = null, trendPct = null, trendLabel = 'N/A';
+    const trendSource = (prevSalesBySku[sk.sku] || []).concat(daily.map(d=>({date:d.date, gmv:d.gmv})));
+    if(asOfDate && trendSource.length){
+      const w1Start = addDaysIso(asOfDate, -6);
+      const w2End = addDaysIso(asOfDate, -7);
+      const w2Start = addDaysIso(asOfDate, -13);
+      trailing7Gmv = +trendSource.filter(d=> d.date>=w1Start && d.date<=asOfDate).reduce((s,d)=>s+d.gmv,0).toFixed(2);
+      prior7Gmv = +trendSource.filter(d=> d.date>=w2Start && d.date<=w2End).reduce((s,d)=>s+d.gmv,0).toFixed(2);
+      if(prior7Gmv > 0){
+        trendPct = +((trailing7Gmv - prior7Gmv) / prior7Gmv * 100).toFixed(1);
+        trendLabel = trendPct >= 15 ? 'Growing' : trendPct <= -15 ? 'Declining' : 'Stable';
+      } else if(trailing7Gmv > 0){
+        trendPct = Infinity; trendLabel = 'Growing';
+      } else {
+        trendPct = 0; trendLabel = 'Stable';
+      }
+    }
+
+    return {
+      sku: sk.sku, asin: sk.asin || '', pic: sk.pic || 'Unassigned', productName: sk.product_name,
+      ...orgOf(sk),
+      mainPL: sk.main_pl || 'Unclassified', subPL: sk.sub_pl || 'Unclassified',
+      lifecycle: sk.lifecycle, sellingType: sk.selling_type, asinStatus: sk.asin_status,
+      salableY4A: sk.salable_y4a || 0, salableAMZ: sk.salable_amz || 0,
+      channel: sk.channel || 'N/A', portfolio: sk.portfolio || 'N/A', priority: sk.priority || 'N/A',
+      moc: sk.moc || 0, mocBand: sk.moc_band || 'N/A', rrp: sk.rrp || 0,
+      docVelocity, docDays, docBand, stockoutDate,
+      trailing7Gmv, prior7Gmv, trendPct, trendLabel,
+      inTargetFile: !!targetBySku[sk.sku], inSalesData: daily.length > 0,
+      targetUnits, actualUnits, gmvRunrateProj, gmvRunratePct,
+      targetGMV, actualGMV, adsTarget, promoTarget, mktTarget, cm3Target,
+      adsActual, promoActual, mktActual, mktRunrateProj, mktRunratePct,
+      daily, ...gvStats(daily),
+    };
+  });
+
+  DATA = { asOfDate, daysElapsed, daysInMonth };
+  ROWS = rows;
+  PICS = [...new Set(ROWS.map(r=>r.pic))].sort();
+}
+
+function renderHeaderAsOf(){
+  document.getElementById('hdrAsOf').textContent = 'As of ' + DATA.asOfDate + ' (day ' + DATA.daysElapsed + '/' + DATA.daysInMonth + ' of month)';
+}
+
+const fmtInt = n => Math.round(n).toLocaleString('en-US');
+const fmtMoney = n => '$' + (n<0?'-':'') + Math.abs(Math.round(n)).toLocaleString('en-US');
+const fmtMoney2 = n => '$' + (n<0?'-':'') + Math.abs(n).toLocaleString('en-US',{minimumFractionDigits:2,maximumFractionDigits:2});
+const COLOR = {orange:'#FF7000', navy:'#002859', grey:'#E4E5E6', green:'#1E8E5A', red:'#D64545', amber:'#B8860B', line:'#E4E5E6'};
+
+// ---------------- center-text plugin for gauges ----------------
+const centerTextPlugin = {
+  id: 'centerText',
+  afterDraw(chart){
+    const opts = chart.config.options.plugins && chart.config.options.plugins.centerText;
+    if(!opts || !opts.text) return;
+    const {ctx, chartArea} = chart;
+    const cx = chartArea.left + chartArea.width/2;
+    const cy = chartArea.top + chartArea.height/2 + (opts.offsetY||14);
+    ctx.save();
+    ctx.font = '800 20px Calibri, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif';
+    ctx.fillStyle = opts.color || COLOR.navy;
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillText(opts.text, cx, cy);
+    if(opts.sub){
+      ctx.font = '700 10px Calibri, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif';
+      ctx.fillStyle = opts.subColor || '#66707C';
+      ctx.fillText(opts.sub, cx, cy + 16);
+    }
+    ctx.restore();
+  }
+};
+Chart.register(centerTextPlugin);
+
+// ---------------- radial run-rate forecast marker for gauges ----------------
+const gaugeMarkerPlugin = {
+  id: 'gaugeMarker',
+  afterDraw(chart){
+    const opts = chart.config.options.plugins && chart.config.options.plugins.gaugeMarker;
+    if(!opts || opts.pct===undefined) return;
+    const meta = chart.getDatasetMeta(0);
+    const arc = meta.data && meta.data[0];
+    if(!arc) return;
+    const clamped = Math.max(0, Math.min(100, opts.pct));
+    const theta = Math.PI + (clamped/100)*Math.PI; // 0%=left(9 o'clock) -> 100%=right(3 o'clock), dome over top
+    const cx = arc.x, cy = arc.y;
+    const rOuter = arc.outerRadius + 3, rInner = arc.innerRadius - 3;
+    const x1 = cx + rInner*Math.cos(theta), y1 = cy + rInner*Math.sin(theta);
+    const x2 = cx + rOuter*Math.cos(theta), y2 = cy + rOuter*Math.sin(theta);
+    const {ctx} = chart;
+    ctx.save();
+    ctx.strokeStyle = opts.color || COLOR.navy;
+    ctx.lineWidth = 3;
+    ctx.setLineDash([3,2]);
+    ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+    ctx.restore();
+  }
+};
+Chart.register(gaugeMarkerPlugin);
+
+// ---------------- header ----------------
+document.getElementById('hdrAsOf').textContent = 'As of ' + DATA.asOfDate + ' (day ' + DATA.daysElapsed + '/' + DATA.daysInMonth + ' of month)';
+
+// ---------------- tabs ----------------
+document.querySelectorAll('.tab-btn').forEach(btn=>{
+  btn.onclick = () => {
+    document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('view-'+btn.dataset.tab).classList.add('active');
+    if(window.V2 && V2.onTab) V2.onTab(btn.dataset.tab);
+  };
+});
+
+// ================= SALES PERFORMANCE =================
+function uniq(key){ return [...new Set(ROWS.map(r=>r[key]).filter(Boolean))].sort(); }
+function uniqFrom(rows, key){ return [...new Set(rows.map(r=>r[key]).filter(Boolean))].sort(); }
+function fillSelect(id, values){
+  const sel = document.getElementById(id);
+  values.forEach(v=>{ const o=document.createElement('option'); o.value=v; o.textContent=v; sel.appendChild(o); });
+}
+function fillSelectPreserve(id, values, preserveVal){
+  const sel = document.getElementById(id);
+  sel.innerHTML = '<option value="">All</option>';
+  fillSelect(id, values);
+  sel.value = (preserveVal && values.includes(preserveVal)) ? preserveVal : '';
+}
+// PIC narrows which Main PL show up; Main PL (and PIC) narrow which Sub PL show up.
+// Re-run whenever PIC/Main PL changes, or the underlying ROWS change (month switch/reset).
+function updateDependentSelects(){
+  const orgRows = cascadeOrgSelects(ROWS, 'fTeam', 'fLeader', 'fPic');
+  const picVal = document.getElementById('fPic').value;
+  const mplSel = document.getElementById('fMainPL');
+  const splSel = document.getElementById('fSubPL');
+  const prevMpl = mplSel.value, prevSpl = splSel.value;
+
+  const rowsForMpl = picVal ? orgRows.filter(r=>r.pic===picVal) : orgRows;
+  fillSelectPreserve('fMainPL', uniqFrom(rowsForMpl, 'mainPL'), prevMpl);
+
+  const mplVal = mplSel.value;
+  const rowsForSpl = mplVal ? rowsForMpl.filter(r=>r.mainPL===mplVal) : rowsForMpl;
+  fillSelectPreserve('fSubPL', uniqFrom(rowsForSpl, 'subPL'), prevSpl);
+}
+function refreshFilterSelects(){
+  ['fChannel','fPortfolio'].forEach(id=>{ document.getElementById(id).innerHTML = '<option value="">All</option>'; });
+  resetTeamSelect('fTeam');
+  fillSelect('fChannel', uniq('channel'));
+  fillSelect('fPortfolio', uniq('portfolio'));
+  updateDependentSelects();
+}
+let sortKey = 'targetGMV', sortDir = -1;
+let charts = {};
+
+function zoneColor(pct, lowerIsBetter){
+  if(lowerIsBetter){
+    if(pct<=100) return COLOR.green;
+    if(pct<=115) return COLOR.amber;
+    return COLOR.red;
+  }
+  if(pct>=95) return COLOR.green;
+  if(pct>=70) return COLOR.amber;
+  return COLOR.red;
+}
+function paceInfo(pct){
+  if(pct>=95) return {label:'Ahead', cls:'green'};
+  if(pct>=70) return {label:'On track', cls:'amber'};
+  return {label:'Behind', cls:'red'};
+}
+
+function getFiltered(){
+  const team = document.getElementById('fTeam').value;
+  const leader = document.getElementById('fLeader').value;
+  const pic = document.getElementById('fPic').value;
+  const mpl = document.getElementById('fMainPL').value;
+  const spl = document.getElementById('fSubPL').value;
+  const ch = document.getElementById('fChannel').value;
+  const pf = document.getElementById('fPortfolio').value;
+  const q = document.getElementById('fSearch').value.trim().toLowerCase();
+  const exSpt = document.getElementById('fExcludeSpt').checked;
+  return ROWS.filter(r =>
+    (!team || r.team===team) && (!leader || r.leader===leader) &&
+    (!pic || r.pic===pic) && (!mpl || r.mainPL===mpl) && (!spl || r.subPL===spl) &&
+    (!ch || r.channel===ch) && (!pf || r.portfolio===pf) &&
+    (!exSpt || !(r.channel||'').toUpperCase().includes('SPT')) &&
+    (!q || r.sku.toLowerCase().includes(q) || (r.productName||'').toLowerCase().includes(q) || (r.asin||'').toLowerCase().includes(q)) &&
+    (!window.V2 || V2.matchGS(r))
+  );
+}
+
+// ---- Date range: prorates target by days-in-range/days-in-month and sums
+// actuals from only the days inside the range, so "Target" and run-rate
+// stop meaning "full month" and instead mean "this window". ----
+let RANGE_ACTIVE = false, RANGE_LABEL = '';
+let EFFECTIVE_DAYS_ELAPSED = 0, EFFECTIVE_DAYS_TOTAL = 30;
+
+function daysBetweenInclusive(a, b){
+  const da = new Date(a+'T00:00:00'), db = new Date(b+'T00:00:00');
+  return Math.round((db-da)/86400000) + 1;
+}
+
+// Bounds the From/To date pickers to the selected month and clears any
+// range left over from a previous month, so you can't pick dates outside
+// the month currently loaded.
+function setDateRangeBounds(monthIso){
+  const nextMonth = addMonthsIso(monthIso, 1);
+  const lastDay = new Date(new Date(nextMonth+'T00:00:00') - 86400000).toISOString().slice(0,10);
+  ['fDateFrom','fDateTo'].forEach(id=>{
+    const el = document.getElementById(id);
+    el.min = monthIso; el.max = lastDay; el.value = '';
+  });
+}
+
+function applyDateRange(rows){
+  const monthIso = document.getElementById('fMonth').value;
+  const fromVal = document.getElementById('fDateFrom').value;
+  const toVal = document.getElementById('fDateTo').value;
+
+  if(!fromVal && !toVal){
+    RANGE_ACTIVE = false;
+    RANGE_LABEL = 'Full-month ' + monthLabel(monthIso);
+    EFFECTIVE_DAYS_ELAPSED = DATA.daysElapsed;
+    EFFECTIVE_DAYS_TOTAL = DATA.daysInMonth;
+    return rows;
+  }
+
+  const monthEnd = addMonthsIso(monthIso,1); // exclusive
+  const lastDay = new Date(new Date(monthEnd+'T00:00:00') - 86400000).toISOString().slice(0,10);
+  let rangeStart = fromVal || monthIso;
+  let rangeEnd = toVal || lastDay;
+  if(rangeStart > rangeEnd){ const tmp = rangeStart; rangeStart = rangeEnd; rangeEnd = tmp; } // guard: From picked after To
+  const daysInRange = Math.max(1, daysBetweenInclusive(rangeStart, rangeEnd));
+  const factor = DATA.daysInMonth ? daysInRange / DATA.daysInMonth : 0;
+
+  const today = todayISO();
+  const elapsedEnd = rangeEnd < today ? rangeEnd : today;
+  const daysElapsedInRange = elapsedEnd < rangeStart ? 0 : daysBetweenInclusive(rangeStart, elapsedEnd);
+
+  RANGE_ACTIVE = true;
+  RANGE_LABEL = rangeStart + ' → ' + rangeEnd + ' (' + daysInRange + '/' + DATA.daysInMonth + ' days)';
+  EFFECTIVE_DAYS_ELAPSED = daysElapsedInRange;
+  EFFECTIVE_DAYS_TOTAL = daysInRange;
+
+  return rows.map(r=>{
+    const daily = (r.daily||[]).filter(d=> d.date>=rangeStart && d.date<=rangeEnd);
+    const actualUnits = +daily.reduce((s,d)=>s+d.units,0).toFixed(2);
+    const actualGMV = +daily.reduce((s,d)=>s+d.gmv,0).toFixed(2);
+    const adsActual = +daily.reduce((s,d)=>s+d.ads,0).toFixed(2);
+    const promoActual = +daily.reduce((s,d)=>s+d.promo,0).toFixed(2);
+    const mktActual = +(adsActual+promoActual).toFixed(2);
+
+    const targetUnits = +(r.targetUnits*factor).toFixed(2);
+    const targetGMV = +(r.targetGMV*factor).toFixed(2);
+    const adsTarget = +(r.adsTarget*factor).toFixed(2);
+    const promoTarget = +(r.promoTarget*factor).toFixed(2);
+    const mktTarget = +(adsTarget+promoTarget).toFixed(2);
+    const cm3Target = r.cm3Target === null || r.cm3Target === undefined ? null : +(r.cm3Target*factor).toFixed(2);
+
+    const gmvRunrateProj = daysElapsedInRange ? actualGMV/daysElapsedInRange*daysInRange : 0;
+    const gmvRunratePct = targetGMV ? +(gmvRunrateProj/targetGMV*100).toFixed(1) : 0;
+    const mktRunrateProj = daysElapsedInRange ? mktActual/daysElapsedInRange*daysInRange : 0;
+    const mktRunratePct = mktTarget ? +(mktRunrateProj/mktTarget*100).toFixed(1) : 0;
+
+    return {...r, daily, actualUnits, actualGMV, adsActual, promoActual, mktActual,
+      targetUnits, targetGMV, adsTarget, promoTarget, mktTarget, cm3Target,
+      gmvRunrateProj, gmvRunratePct, mktRunrateProj, mktRunratePct, ...gvStats(daily)};
+  });
+}
+
+function applyQuickFilters(rows){
+  const invOnly = document.getElementById('qfInvPositive').checked;
+  const rrOnly = document.getElementById('qfRunratePositive').checked;
+  if(!invOnly && !rrOnly) return rows;
+  return rows.filter(r=>{
+    if(invOnly && (r.salableY4A + r.salableAMZ) <= 0) return false;
+    if(rrOnly && r.gmvRunratePct === 0) return false;
+    return true;
+  });
+}
+
+function aggregate(rows, key){
+  const groups = {};
+  rows.forEach(r=>{
+    const k = r[key] || 'Unclassified';
+    if(!groups[k]) groups[k] = {name:k, targetGMV:0, actualGMV:0, mktTarget:0, mktActual:0, targetUnits:0, actualUnits:0, skuCount:0,
+      adsTarget:0, adsActual:0, promoTarget:0, promoActual:0, gmvRunrateProj:0, mktRunrateProj:0, inv:0,
+      cm3:0, cm3Gmv:0, cm3Target:0, teams:new Set(), leaders:new Set(), pics:new Set()};
+    const g = groups[k];
+    g.teams.add(r.team); g.leaders.add(r.leader); g.pics.add(r.pic);
+    const c = cm3Of(r); if(c !== null){ g.cm3 += c; g.cm3Gmv += r.actualGMV||0; }
+    g.cm3Target += r.cm3Target || 0;
+    g.skuCount++; g.targetGMV+=r.targetGMV; g.actualGMV+=r.actualGMV;
+    g.mktTarget+=r.mktTarget; g.mktActual+=r.mktActual; g.targetUnits+=r.targetUnits; g.actualUnits+=r.actualUnits;
+    g.adsTarget+=r.adsTarget; g.adsActual+=r.adsActual; g.promoTarget+=r.promoTarget; g.promoActual+=r.promoActual;
+    g.gmvRunrateProj+=r.gmvRunrateProj; g.mktRunrateProj+=r.mktRunrateProj;
+    g.inv += (r.salableY4A||0) + (r.salableAMZ||0);
+  });
+  const joinSet = st => [...st].sort().join(', ');
+  return Object.values(groups).map(g=>Object.assign(g, {
+    team: joinSet(g.teams), leader: joinSet(g.leaders), picCount: g.pics.size,
+    cm3Pct: g.cm3Gmv ? g.cm3/g.cm3Gmv*100 : null, costedPct: g.actualGMV ? g.cm3Gmv/g.actualGMV*100 : null,
+  })).sort((a,b)=>b.targetGMV-a.targetGMV);
+}
+
+function runrateProj(actual){ return EFFECTIVE_DAYS_ELAPSED ? actual/EFFECTIVE_DAYS_ELAPSED*EFFECTIVE_DAYS_TOTAL : 0; }
+function runratePct(actual, target){ const p = runrateProj(actual); return target ? p/target*100 : 0; }
+
+let mocBandFilter = null;
+
+function renderMocStrip(rows){
+  const order = [
+    {band:'OOS', color:COLOR.red, bg:'#FBEAEA'},
+    {band:'DOC <14d', color:COLOR.red, bg:'#FBEAEA'},
+    {band:'DOC 14–30d', color:COLOR.amber, bg:'#FBF3DF'},
+    {band:'DOC 30–90d', color:COLOR.green, bg:'#E7F5EE'},
+    {band:'DOC >90d', color:COLOR.navy, bg:'#E9EEF5'},
+    {band:'N/A', color:'#66707C', bg:'#EEF1F5'},
+  ];
+  const counts = {};
+  rows.forEach(r=>{ counts[r.docBand] = (counts[r.docBand]||0)+1; });
+  document.getElementById('mocStrip').innerHTML = '<span class="lbl">Inventory health (Days of Cover, trailing 7-day velocity, SKU count) — click a bucket to filter the table below</span>' +
+    order.map(o=>{
+      const active = mocBandFilter === o.band;
+      return `<span class="moc-chip clickable${active?' active':''}" data-band="${o.band}" style="background:${o.bg};color:${o.color}"><span class="n">${counts[o.band]||0}</span> ${o.band}</span>`;
+    }).join('') +
+    (mocBandFilter ? `<span class="moc-chip clear-chip" data-clear="1" style="background:#fff;color:#66707C;border:1px dashed #C7CFDA">&times; Clear</span>` : '');
+}
+
+document.getElementById('mocStrip').addEventListener('click', (e)=>{
+  const chip = e.target.closest('.moc-chip');
+  if(!chip) return;
+  if(chip.dataset.clear){ mocBandFilter = null; renderAll(); return; }
+  const band = chip.dataset.band;
+  if(!band) return;
+  mocBandFilter = (mocBandFilter === band) ? null : band;
+  renderAll();
+});
+
+// ---- Action Code Summary (Sales Performance tab) ----------------------
+// Independent rule-based flags over the same trend/DOC/ads fields already
+// computed per-row in loadMonth(). Unlike suggestAction() (one verdict per
+// SKU, used in the Product Performance detail table), these can overlap —
+// a SKU can be both "low cover" and "ads still running" at once, which is
+// exactly the kind of cross-cutting question Rachel asked for.
+let actionCodeFilter = null;
+
+const ACTION_FLAGS = [
+  {key:'oos', label:'OOS — restock now', color:COLOR.red, bg:'#FBEAEA',
+    test:r=>r.docBand==='OOS'},
+  {key:'lowcover_ads', label:'Low cover (<14d) + ads still running', color:COLOR.red, bg:'#FBEAEA',
+    test:r=>(r.docBand==='OOS'||r.docBand==='DOC <14d') && r.adsActual>0},
+  {key:'overstock_noads', label:'Overstock (>90d) + no ads/promo pushed', color:COLOR.navy, bg:'#E9EEF5',
+    test:r=>r.docBand==='DOC >90d' && !(r.adsActual>0) && !(r.promoActual>0)},
+  {key:'declining_hightacos', label:'Declining + high TACOS (>15%)', color:COLOR.amber, bg:'#FBF3DF',
+    test:r=>r.trendLabel==='Declining' && r.actualGMV>0 && (r.adsActual/r.actualGMV*100)>15},
+  {key:'declining_noads', label:'Declining + no ads running', color:COLOR.amber, bg:'#FBF3DF',
+    test:r=>r.trendLabel==='Declining' && !(r.adsActual>0)},
+  {key:'growing', label:'Growing — scale candidate', color:COLOR.green, bg:'#E7F5EE',
+    test:r=>r.trendLabel==='Growing'},
+];
+
+function renderActionCodeStrip(rows){
+  const counts = {};
+  ACTION_FLAGS.forEach(f=>{ counts[f.key] = rows.filter(f.test).length; });
+  document.getElementById('actionCodeStrip').innerHTML =
+    ACTION_FLAGS.map(f=>{
+      const active = actionCodeFilter === f.key;
+      return `<span class="moc-chip clickable${active?' active':''}" data-code="${f.key}" style="background:${f.bg};color:${f.color}"><span class="n">${counts[f.key]}</span> ${f.label}</span>`;
+    }).join('') +
+    (actionCodeFilter ? `<span class="moc-chip clear-chip" data-clear="1" style="background:#fff;color:#66707C;border:1px dashed #C7CFDA">&times; Clear</span>` : '');
+}
+
+document.getElementById('actionCodeStrip').addEventListener('click', (e)=>{
+  const chip = e.target.closest('.moc-chip');
+  if(!chip) return;
+  if(chip.dataset.clear){ actionCodeFilter = null; renderAll(); return; }
+  const code = chip.dataset.code;
+  if(!code) return;
+  actionCodeFilter = (actionCodeFilter === code) ? null : code;
+  renderAll();
+});
+
+function renderKPIs(rows, fullRows){
+  const t = { targetGMV:0, actualGMV:0, mktTarget:0, mktActual:0, targetUnits:0, actualUnits:0 };
+  rows.forEach(r=>{ t.targetGMV+=r.targetGMV; t.actualGMV+=r.actualGMV; t.mktTarget+=r.mktTarget; t.mktActual+=r.mktActual; t.targetUnits+=r.targetUnits; t.actualUnits+=r.actualUnits; });
+  const mktGmvTargetPct = t.targetGMV ? t.mktTarget/t.targetGMV*100 : 0;
+  const mktGmvActualPct = t.actualGMV ? t.mktActual/t.actualGMV*100 : 0;
+  const mktGmvIndex = mktGmvTargetPct ? mktGmvActualPct/mktGmvTargetPct*100 : 0;
+
+  const periodLabel = RANGE_ACTIVE ? RANGE_LABEL : ('Full-month ' + monthLabel(document.getElementById('fMonth').value));
+  document.getElementById('targetSectionTitle').textContent = 'Target — ' + periodLabel;
+  document.getElementById('actualSectionTitle').textContent = RANGE_ACTIVE
+    ? ('Actual — ' + RANGE_LABEL + ' (with run-rate projection)')
+    : 'Actual — Month-to-date (with run-rate projection)';
+
+  document.getElementById('kpiTargetRow').innerHTML = `
+    <div class="kpi target"><div class="lbl">GMV Target</div><div class="val">${fmtMoney(t.targetGMV)}</div><div class="sub">${periodLabel}</div></div>
+    <div class="kpi target"><div class="lbl">Marketing Budget Target</div><div class="val">${fmtMoney(t.mktTarget)}</div><div class="sub">Ads + Promo, ${RANGE_ACTIVE?'this range':'full month'}</div></div>
+    <div class="kpi target"><div class="lbl">% MKT / GMV Target</div><div class="val">${mktGmvTargetPct.toFixed(1)}%</div><div class="sub">Planned marketing efficiency</div></div>
+    <div class="kpi target"><div class="lbl">Target Sales Units</div><div class="val">${fmtInt(t.targetUnits)}</div><div class="sub">${periodLabel}</div></div>
+  `;
+
+  const gmvRR = runratePct(t.actualGMV, t.targetGMV);
+  const mktRR = runratePct(t.mktActual, t.mktTarget);
+  const unitsRR = runratePct(t.actualUnits, t.targetUnits);
+  const mktIdxClamped = Math.max(0, Math.min(200, mktGmvIndex));
+
+  // "Today Must Gain" is always a full-month daily pace, regardless of any
+  // date-range filter on the table/charts above — so it's computed from
+  // fullRows (pic/PL-filtered only) rather than the range-scoped `rows`.
+  const fullTargetGMV = (fullRows||rows).reduce((s,r)=>s+r.targetGMV, 0);
+  const daysInMonth = DATA.daysInMonth;
+  const gmvLiteral = t.targetGMV ? t.actualGMV/t.targetGMV*100 : 0;
+  const mktLiteral = t.mktTarget ? t.mktActual/t.mktTarget*100 : 0;
+  const unitsLiteral = t.targetUnits ? t.actualUnits/t.targetUnits*100 : 0;
+  const gmvMustToday = daysInMonth ? fullTargetGMV/daysInMonth : 0;
+
+  const mktProjected = runrateProj(t.mktActual);
+  const mktDiff = t.mktTarget - mktProjected;
+  document.getElementById('hdrMustGain').textContent = fmtMoney(gmvMustToday);
+  const mktStatusEl = document.getElementById('hdrMktStatus');
+  if(t.mktTarget){
+    mktStatusEl.innerHTML = mktDiff >= 0
+      ? `Marketing budget: <b>${fmtMoney(mktDiff)}</b> under (forecast)`
+      : `Marketing budget: <b>${fmtMoney(Math.abs(mktDiff))}</b> over (forecast)`;
+  } else { mktStatusEl.textContent = ''; }
+
+  document.getElementById('kpiActualRow').innerHTML = `
+    <div class="gkpi">
+      <div class="lbl">GMV Actual</div><div class="gaugewrap"><canvas id="gGMV"></canvas></div>
+      <div class="figures">Actual <b>${fmtMoney(t.actualGMV)}</b> / Target ${fmtMoney(t.targetGMV)}</div>
+      <div class="gauge-caption"><span class="dash"></span>forecast run-rate ${gmvRR.toFixed(0)}%</div>
+    </div>
+    <div class="gkpi">
+      <div class="lbl">Marketing $ Actual</div><div class="gaugewrap"><canvas id="gMKT"></canvas></div>
+      <div class="figures">Actual <b>${fmtMoney(t.mktActual)}</b> / Target ${fmtMoney(t.mktTarget)}</div>
+      <div class="gauge-caption"><span class="dash"></span>forecast run-rate ${mktRR.toFixed(0)}%</div>
+    </div>
+    <div class="gkpi">
+      <div class="lbl">% MKT/GMV Actual (Index)</div><div class="gaugewrap"><canvas id="gIDX"></canvas></div>
+      <div class="figures">Actual <b>${mktGmvActualPct.toFixed(1)}%</b> vs Target ${mktGmvTargetPct.toFixed(1)}%</div>
+      <div class="gauge-caption">&lt;100% = more efficient than planned</div>
+    </div>
+    <div class="gkpi">
+      <div class="lbl">Sales Units Actual</div><div class="gaugewrap"><canvas id="gUNIT"></canvas></div>
+      <div class="figures">Actual <b>${fmtInt(t.actualUnits)}</b> / Target ${fmtInt(t.targetUnits)}</div>
+      <div class="gauge-caption"><span class="dash"></span>forecast run-rate ${unitsRR.toFixed(0)}%</div>
+    </div>
+  `;
+
+  if(charts.gGMV) charts.gGMV.destroy();
+  if(charts.gMKT) charts.gMKT.destroy();
+  if(charts.gIDX) charts.gIDX.destroy();
+  if(charts.gUNIT) charts.gUNIT.destroy();
+  charts.gGMV = makeGauge('gGMV', gmvLiteral, gmvRR, false);
+  charts.gMKT = makeGauge('gMKT', mktLiteral, mktRR, false);
+  charts.gIDX = makeGauge('gIDX', mktIdxClamped, null, true, mktGmvIndex, 'index');
+  charts.gUNIT = makeGauge('gUNIT', unitsLiteral, unitsRR, false);
+
+  const c = cm3Totals(rows);
+  const cm3Proj = runrateProj(c.cm3);
+  const cm3Unit = t.actualUnits ? c.cm3 / t.actualUnits : null;
+  const coveredPct = t.actualGMV ? c.cm3Gmv / t.actualGMV * 100 : null;
+  document.getElementById('cm3SectionTitle').textContent = 'Profitability — CM3 (ước tính) · ' + (RANGE_ACTIVE ? RANGE_LABEL : 'Month-to-date');
+  document.getElementById('kpiCm3Row').innerHTML = `
+    <div class="kpi target"><div class="lbl">CM3 $ Actual</div><div class="val" style="color:${cm3Color(c.cm3Pct)}">${c.costed ? fmtMoney(c.cm3) : '—'}</div><div class="sub">Target ${fmtMoney(c.cm3Target)} (${fmtPctOrDash(c.cm3TargetPct)}) &middot; Units × CM3 base − (Ads × 0.985 + Promo)</div></div>
+    <div class="kpi target"><div class="lbl">CM3 % GMV</div><div class="val" style="color:${cm3Color(c.cm3Pct)}">${fmtPctOrDash(c.cm3Pct)}</div><div class="sub">Trên GMV có cost stack (${fmtPctOrDash(coveredPct, 0)} GMV)</div></div>
+    <div class="kpi target"><div class="lbl">CM3 forecast (run-rate)</div><div class="val">${c.costed ? fmtMoney(cm3Proj) : '—'}</div><div class="sub">${c.cm3Target ? fmtPctOrDash(cm3Proj / c.cm3Target * 100, 0) + ' CM3 target · ' : ''}nếu giữ tốc độ tới cuối ${RANGE_ACTIVE ? 'khoảng ngày' : 'tháng'}</div></div>
+    <div class="kpi target"><div class="lbl">CM3 / unit</div><div class="val">${cm3Unit === null || !c.costed ? '—' : fmtMoney2(cm3Unit)}</div><div class="sub">${fmtInt(c.costed)} / ${fmtInt(rows.length)} SKU có cost stack</div></div>
+  `;
+}
+
+function makeGauge(canvasId, literalPct, markerPct, lowerIsBetter, displayValOverride, subText){
+  const clamped = Math.max(0, Math.min(100, literalPct));
+  const expectedPct = EFFECTIVE_DAYS_TOTAL ? (EFFECTIVE_DAYS_ELAPSED/EFFECTIVE_DAYS_TOTAL*100) : 100;
+  const paceRatio = expectedPct ? (literalPct/expectedPct*100) : literalPct;
+  const color = zoneColor(lowerIsBetter ? literalPct : paceRatio, lowerIsBetter);
+  const shown = (displayValOverride!==undefined ? displayValOverride : literalPct);
+  const hasMarker = (markerPct!==null && markerPct!==undefined);
+  return new Chart(document.getElementById(canvasId), {
+    type:'doughnut',
+    data:{ datasets:[{ data:[clamped, 100-clamped], backgroundColor:[color, '#EEF1F5'], borderWidth:0 }] },
+    options:{
+      circumference:180, rotation:270, cutout:'72%', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{enabled:false},
+        centerText:{ text: shown.toFixed(1)+'%', sub: subText || 'of target', color: color },
+        gaugeMarker: hasMarker ? { pct: markerPct, color: COLOR.navy } : undefined }
+    }
+  });
+}
+
+function barChart(ctx, labels, target, actual){
+  return new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      {label:'Target', data:target, backgroundColor: COLOR.grey, borderRadius:4, barThickness:12},
+      {label:'Actual MTD', data:actual, backgroundColor: COLOR.orange, borderRadius:4, barThickness:12},
+    ]},
+    options:{
+      indexAxis:'y', responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:10, font:{size:10.5, family:'Calibri, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif'}}} },
+      scales:{ x:{ grid:{color:COLOR.line} }, y:{ grid:{display:false} } }
+    }
+  });
+}
+
+function sortGroups(list, key, dir){
+  return [...list].sort((a,b)=>{
+    const va = a[key], vb = b[key];
+    if(typeof va === 'string' || typeof vb === 'string') return dir*String(va||'').localeCompare(String(vb||''));
+    const na = Number.isFinite(va) ? va : (va === Infinity ? 1e15 : -1e15), nb = Number.isFinite(vb) ? vb : (vb === Infinity ? 1e15 : -1e15);
+    return dir*(na-nb);
+  });
+}
+
+// Team Progress: one row per Team (team_map.js / skus.team), TOTAL on top.
+let teamSortKey = 'targetGMV', teamSortDir = -1;
+function teamRowHtml(g, isTotal, activeTeam){
+  const prog = g.targetGMV ? g.actualGMV/g.targetGMV*100 : 0, rr = g.targetGMV ? g.gmvRunrateProj/g.targetGMV*100 : 0;
+  const tMkt = g.targetGMV ? g.mktTarget/g.targetGMV*100 : 0, cMkt = g.actualGMV ? g.mktActual/g.actualGMV*100 : 0;
+  const tacos = g.actualGMV ? g.adsActual/g.actualGMV*100 : null;
+  const cm3Pct = g.cm3Gmv ? g.cm3/g.cm3Gmv*100 : null, costed = g.actualGMV ? g.cm3Gmv/g.actualGMV*100 : null;
+  const safe = escapeHtml(g.name).replace(/"/g,'&quot;');
+  const nameCell = isTotal ? 'TOTAL'
+    : `<a href="#" class="team-link" data-team="${safe}" style="color:var(--navy);font-weight:800;text-decoration:none;border-bottom:1px dashed var(--navy)">${escapeHtml(g.name)}</a>${activeTeam===g.name?' <span class="badge amber">đang lọc</span>':''}`;
+  return `<tr${isTotal?' style="background:#F5F7FA;font-weight:700"':''}>
+    <td>${nameCell}</td>
+    <td>${isTotal ? '' : escapeHtml(g.leader)}</td>
+    <td class="num">${fmtInt(g.picCount)}</td>
+    <td class="num">${fmtInt(g.skuCount)}</td>
+    <td class="num">${fmtMoney(g.targetGMV)}</td>
+    <td class="num" style="color:${zoneColor(prog,false)};font-weight:700">${fmtMoney(g.actualGMV)}</td>
+    <td class="num" style="color:${zoneColor(prog,false)};font-weight:700">${prog.toFixed(0)}%</td>
+    <td class="num" style="color:${zoneColor(rr,false)};font-weight:700">${rr.toFixed(0)}%</td>
+    <td class="num">${fmtMoney(g.targetGMV - g.actualGMV)}</td>
+    <td class="num">${fmtMoney(g.mktTarget)}</td>
+    <td class="num">${fmtMoney(g.mktActual)}</td>
+    <td class="num">${tMkt.toFixed(1)}%</td>
+    <td class="num" style="color:${zoneColor(tMkt ? cMkt/tMkt*100 : 0, true)};font-weight:700">${cMkt.toFixed(1)}%</td>
+    <td class="num">${fmtPctOrDash(tacos)}</td>
+    <td class="num">${fmtInt(g.actualUnits)}</td>
+    <td class="num">${g.cm3Target ? fmtMoney(g.cm3Target) : '—'}</td>
+    <td class="num" style="color:${cm3Color(cm3Pct)};font-weight:700">${g.cm3Gmv ? fmtMoney(g.cm3) : '—'}</td>
+    <td class="num" style="color:${cm3Color(cm3Pct)};font-weight:700">${fmtPctOrDash(cm3Pct)}</td>
+    <td class="num">${fmtPctOrDash(costed, 0)}</td>
+  </tr>`;
+}
+function renderTeamProgressTable(byTeam){
+  const derived = byTeam.map(g=>({...g,
+    gmvProgressPct: g.targetGMV ? g.actualGMV/g.targetGMV*100 : 0,
+    gmvRunratePct: g.targetGMV ? g.gmvRunrateProj/g.targetGMV*100 : 0,
+    gmvRemaining: g.targetGMV - g.actualGMV,
+    targetMktGmvPct: g.targetGMV ? g.mktTarget/g.targetGMV*100 : 0,
+    currentMktGmvPct: g.actualGMV ? g.mktActual/g.actualGMV*100 : 0,
+    tacos: g.actualGMV ? g.adsActual/g.actualGMV*100 : null,
+  }));
+  const sorted = sortGroups(derived, teamSortKey, teamSortDir);
+  const activeTeam = document.getElementById('fTeam').value;
+  const total = {name:'TOTAL', picCount:0};
+  ['targetGMV','actualGMV','gmvRunrateProj','mktTarget','mktActual','adsActual','actualUnits','cm3','cm3Gmv','cm3Target','skuCount','picCount'].forEach(k=>{ total[k] = derived.reduce((s,g)=>s+(g[k]||0), 0); });
+  document.getElementById('teamProgressTbody').innerHTML = derived.length
+    ? (derived.length > 1 ? teamRowHtml(total, true, activeTeam) : '') + sorted.map(g=>teamRowHtml(g, false, activeTeam)).join('')
+    : '<tr><td colspan="19" style="text-align:center;padding:20px;color:#66707C">No data</td></tr>';
+}
+document.querySelectorAll('#teamProgressTable thead th').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const k = th.dataset.k;
+    if(teamSortKey===k) teamSortDir *= -1; else { teamSortKey=k; teamSortDir=-1; }
+    renderAll();
+  });
+});
+// Click a Team name: filter the whole Tracking tab to that team (click again to clear)
+document.getElementById('teamProgressTbody').addEventListener('click', (e)=>{
+  const a = e.target.closest('.team-link');
+  if(!a) return;
+  e.preventDefault();
+  const sel = document.getElementById('fTeam');
+  sel.value = sel.value === a.dataset.team ? '' : a.dataset.team;
+  document.getElementById('fLeader').value = '';
+  document.getElementById('fPic').value = '';
+  updateDependentSelects();
+  renderAll();
+});
+
+// PIC Progress summary table (replaces the old GMV/MKT bar-chart pair).
+// Colors on Actual-side metrics reuse zoneColor() — the same ahead/on-track/
+// behind (green>=95/amber>=70/red<70) and lower-is-better (MKT/GMV index)
+// bands already used for the gauges above and the Ads Performance tab.
+let picSortKey = 'targetGMV', picSortDir = -1; // default: highest GMV target first
+
+function renderPicProgressTable(byPic){
+  const derived = byPic.map(g=>{
+    const gmvProgressPct = g.targetGMV ? g.actualGMV/g.targetGMV*100 : 0;
+    const gmvRunratePct = g.targetGMV ? g.gmvRunrateProj/g.targetGMV*100 : 0;
+    const gmvRemaining = g.targetGMV - g.actualGMV;
+    const mktSpentPct = g.mktTarget ? g.mktActual/g.mktTarget*100 : 0;
+    const targetMktGmvPct = g.targetGMV ? g.mktTarget/g.targetGMV*100 : 0;
+    const currentMktGmvPct = g.actualGMV ? g.mktActual/g.actualGMV*100 : 0;
+    const mktGmvIndex = targetMktGmvPct ? currentMktGmvPct/targetMktGmvPct*100 : 0;
+    const adsSpentPct = g.adsTarget ? g.adsActual/g.adsTarget*100 : 0;
+    const promoSpentPct = g.promoTarget ? g.promoActual/g.promoTarget*100 : 0;
+    return {...g, gmvProgressPct, gmvRunratePct, gmvRemaining, mktSpentPct, targetMktGmvPct, currentMktGmvPct, mktGmvIndex, adsSpentPct, promoSpentPct};
+  });
+
+  const sorted = sortGroups(derived, picSortKey, picSortDir);
+
+  document.getElementById('picProgressTbody').innerHTML = sorted.map(g=>{
+    const progColor = zoneColor(g.gmvProgressPct, false);
+    const rrColor = zoneColor(g.gmvRunratePct, false);
+    const spentColor = zoneColor(g.mktSpentPct, false);
+    const idxColor = zoneColor(g.mktGmvIndex, true);
+    const adsColor = zoneColor(g.adsSpentPct, false);
+    const promoColor = zoneColor(g.promoSpentPct, false);
+    return `<tr>
+      <td><a href="#" class="pic-link" data-pic="${String(g.name).replace(/"/g,'&quot;')}" title="Lọc toàn tab theo ${String(g.name).replace(/"/g,'&quot;')}" style="color:var(--navy);font-weight:800;text-decoration:none;border-bottom:1px dashed var(--navy)">${g.name}</a>${document.getElementById('fPic').value===g.name?' <span class="badge amber">đang lọc</span>':''}</td>
+      <td>${escapeHtml(g.team)}</td>
+      <td>${escapeHtml(g.leader)}</td>
+      <td class="num">${fmtMoney(g.targetGMV)}</td>
+      <td class="num" style="color:${progColor};font-weight:700">${fmtMoney2(g.actualGMV)}</td>
+      <td class="num" style="color:${progColor};font-weight:700">${g.gmvProgressPct.toFixed(0)}%</td>
+      <td class="num" style="color:${rrColor};font-weight:700">${g.gmvRunratePct.toFixed(0)}%</td>
+      <td class="num">${fmtMoney(g.gmvRemaining)}</td>
+      <td class="num">${fmtMoney(g.mktTarget)}</td>
+      <td class="num" style="color:${spentColor};font-weight:700">${fmtMoney2(g.mktActual)}</td>
+      <td class="num" style="color:${spentColor};font-weight:700">${g.mktSpentPct.toFixed(0)}%</td>
+      <td class="num">${g.targetMktGmvPct.toFixed(1)}%</td>
+      <td class="num" style="color:${idxColor};font-weight:700">${g.currentMktGmvPct.toFixed(1)}%</td>
+      <td class="num">${fmtMoney(g.adsTarget)}</td>
+      <td class="num" style="color:${adsColor};font-weight:700">${fmtMoney2(g.adsActual)}</td>
+      <td class="num">${fmtMoney(g.promoTarget)}</td>
+      <td class="num" style="color:${promoColor};font-weight:700">${g.promoSpentPct.toFixed(0)}%</td>
+      <td class="num" style="color:${cm3Color(g.cm3Pct)};font-weight:700">${g.cm3Gmv ? fmtMoney(g.cm3) : '—'}</td>
+      <td class="num" style="color:${cm3Color(g.cm3Pct)};font-weight:700">${fmtPctOrDash(g.cm3Pct)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="19" style="text-align:center;padding:20px;color:#66707C">No data</td></tr>';
+}
+
+document.querySelectorAll('#picProgressTable thead th').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const k = th.dataset.k;
+    if(picSortKey===k) picSortDir *= -1; else { picSortKey=k; picSortDir=-1; }
+    renderAll();
+  });
+});
+
+// Click a PIC name: filter the whole Tracking tab to that PIC (click again to clear)
+document.getElementById('picProgressTbody').addEventListener('click', (e)=>{
+  const a = e.target.closest('.pic-link');
+  if(!a) return;
+  e.preventDefault();
+  const sel = document.getElementById('fPic');
+  sel.value = sel.value === a.dataset.pic ? '' : a.dataset.pic;
+  updateDependentSelects();
+  renderAll();
+  if(sel.value) document.getElementById('plProgressTable').scrollIntoView({behavior:'smooth', block:'start'});
+});
+
+// Product Line Progress summary table (replaces the old GMV/MKT bar-chart
+// pair). % STR (Sell-Through Rate) is a proxy = actual units sold / (actual
+// units sold + current on-hand inventory), since we don't keep a
+// beginning-of-month inventory snapshot to compute a "true" sell-through.
+let plSortKey = 'targetGMV', plSortDir = -1; // default: highest GMV target first
+
+function renderPlProgressTable(byMain){
+  const derived = byMain.map(g=>{
+    const gmvProgressPct = g.targetGMV ? g.actualGMV/g.targetGMV*100 : 0;
+    const gmvRunratePct = g.targetGMV ? g.gmvRunrateProj/g.targetGMV*100 : 0;
+    const targetMktGmvPct = g.targetGMV ? g.mktTarget/g.targetGMV*100 : 0;
+    const actualMktGmvPct = g.actualGMV ? g.mktActual/g.actualGMV*100 : 0;
+    const mktGmvProgressPct = targetMktGmvPct ? actualMktGmvPct/targetMktGmvPct*100 : 0;
+    const strDenom = (g.actualUnits||0) + (g.inv||0);
+    const strPct = strDenom ? (g.actualUnits||0)/strDenom*100 : 0;
+    return {...g, gmvProgressPct, gmvRunratePct, targetMktGmvPct, actualMktGmvPct, mktGmvProgressPct, strPct};
+  });
+
+  const sorted = sortGroups(derived, plSortKey, plSortDir);
+
+  document.getElementById('plProgressTbody').innerHTML = sorted.map(g=>{
+    const progColor = zoneColor(g.gmvProgressPct, false);
+    const rrColor = zoneColor(g.gmvRunratePct, false);
+    const mktProgColor = zoneColor(g.mktGmvProgressPct, true);
+    const strColor = zoneColor(g.strPct, false);
+    return `<tr class="pl-row" data-name="${g.name.replace(/"/g,'&quot;')}" style="cursor:pointer" title="Click to filter SKU Breakdown to ${g.name}">
+      <td><b>${g.name}</b></td>
+      <td class="num">${fmtMoney(g.targetGMV)}</td>
+      <td class="num" style="color:${progColor};font-weight:700">${fmtMoney2(g.actualGMV)}</td>
+      <td class="num" style="color:${progColor};font-weight:700">${g.gmvProgressPct.toFixed(0)}%</td>
+      <td class="num" style="color:${rrColor};font-weight:700">${g.gmvRunratePct.toFixed(0)}%</td>
+      <td class="num">${g.targetMktGmvPct.toFixed(1)}%</td>
+      <td class="num">${g.actualMktGmvPct.toFixed(1)}%</td>
+      <td class="num" style="color:${mktProgColor};font-weight:700">${g.mktGmvProgressPct.toFixed(0)}%</td>
+      <td class="num" style="color:${strColor};font-weight:700">${g.strPct.toFixed(0)}%</td>
+      <td class="num" style="color:${cm3Color(g.cm3Pct)};font-weight:700">${g.cm3Gmv ? fmtMoney(g.cm3) : '—'}</td>
+      <td class="num" style="color:${cm3Color(g.cm3Pct)};font-weight:700">${fmtPctOrDash(g.cm3Pct)}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="11" style="text-align:center;padding:20px;color:#66707C">No data</td></tr>';
+}
+
+document.querySelectorAll('#plProgressTable thead th').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const k = th.dataset.k;
+    if(plSortKey===k) plSortDir *= -1; else { plSortKey=k; plSortDir=-1; }
+    renderAll();
+  });
+});
+
+// Clicking a Product Line row jumps the Main PL filter to that line and
+// scrolls down to the (now-filtered) SKU Breakdown table.
+document.getElementById('plProgressTbody').addEventListener('click', (e)=>{
+  const tr = e.target.closest('.pl-row');
+  if(!tr) return;
+  // Clear PIC first so the Main PL option list isn't pre-narrowed and the
+  // clicked line is guaranteed to exist as an option, then select it.
+  document.getElementById('fPic').value = '';
+  updateDependentSelects();
+  const mplSel = document.getElementById('fMainPL');
+  mplSel.value = tr.dataset.name;
+  updateDependentSelects();
+  renderAll();
+  document.getElementById('skuTable').scrollIntoView({behavior:'smooth', block:'start'});
+});
+
+function renderCharts(rows){
+  renderTeamProgressTable(aggregate(rows,'team'));
+  const byPic = aggregate(rows,'pic');
+  renderPicProgressTable(byPic);
+
+  const byMain = aggregate(rows,'mainPL');
+  renderPlProgressTable(byMain);
+
+  const dailyMap = {};
+  rows.forEach(r=> (r.daily||[]).forEach(pt=>{
+    if(!dailyMap[pt.date]) dailyMap[pt.date] = {date:pt.date, gmv:0, mkt:0, ads:0, promo:0, units:0, adsGmv:0, adsUnits:0, impressions:0, clicks:0, glanceViews:0};
+    const d = dailyMap[pt.date];
+    d.gmv += pt.gmv; d.mkt += pt.mkt; d.ads += pt.ads||0; d.promo += pt.promo||0;
+    d.units += pt.units||0; d.adsGmv += pt.adsGmv||0; d.adsUnits += pt.adsUnits||0;
+    d.impressions += pt.impressions||0; d.clicks += pt.clicks||0; d.glanceViews += pt.glanceViews||0;
+  }));
+  lastDailyArr = Object.values(dailyMap).sort((a,b)=>a.date.localeCompare(b.date));
+  renderDailyChart();
+}
+
+// Daily Trends chart — one horizontally-scrollable Chart.js instance reused
+// across 5 toggle-able "views" so a single chart can surface GMV, units,
+// MKT fee, ads $, promo $, organic vs ads GMV, and (where the data exists)
+// Glance Views / Conversion Rate, without cramming a long month.
+let lastDailyArr = [];
+let dailyChartView = 'gmvMkt';
+const DAILY_CHART_HINTS = {
+  gmvMkt: 'Columns = GMV per day &middot; Line = total Marketing fee (Ads + Promo) per day &middot; Scroll horizontally on long months',
+  gmvBreakdown: 'Stacked columns = Organic GMV vs Ads-attributed GMV per day &middot; Line = Total GMV',
+  spend: 'Columns = Ads $ vs Promo $ per day &middot; Line = combined Marketing fee (Ads + Promo)',
+  units: 'Columns = Total units sold per day &middot; Line = units driven by ads',
+  glance: 'Columns = Glance Views per day (Amazon detail-page views) &middot; Line = Conversion Rate (Units &divide; Glance Views). Days without glance-view data fall back to ad impressions and ad clicks.',
+};
+
+let dailyGrain = 'day';
+function renderDailyChart(){
+  if(window.V2 && V2.dailyTrend && typeof Plotly !== 'undefined'){
+    document.getElementById('dailyChartHint').innerHTML = DAILY_CHART_HINTS[dailyChartView] + ' &middot; Kéo thanh trượt dưới chart để chọn khoảng ngày';
+    V2.dailyTrend(lastDailyArr, dailyChartView, dailyGrain, 'dailyPlot');
+    return;
+  }
+  document.getElementById('dailyChartLegacy').hidden = false;
+  if(charts.daily) charts.daily.destroy();
+  const dailyArr = lastDailyArr;
+  const labels = dailyArr.map(d=>d.date);
+
+  document.getElementById('dailyChartHint').innerHTML = DAILY_CHART_HINTS[dailyChartView];
+
+  // Widen the scroll container on long months (~34px/day) so bars never get
+  // crammed; short months just fill the card at 100% width.
+  const inner = document.getElementById('chartDailyInner');
+  inner.style.width = Math.max(100, dailyArr.length*3.4) + '%';
+
+  let datasets, scales;
+  if(dailyChartView === 'gmvBreakdown'){
+    const organic = dailyArr.map(d=>+(d.gmv-d.adsGmv).toFixed(2));
+    const adsGmv = dailyArr.map(d=>+d.adsGmv.toFixed(2));
+    datasets = [
+      {type:'bar', label:'Organic GMV', data:organic, backgroundColor:COLOR.grey, yAxisID:'y', stack:'gmv', borderRadius:4, order:2},
+      {type:'bar', label:'Ads GMV', data:adsGmv, backgroundColor:COLOR.orange, yAxisID:'y', stack:'gmv', borderRadius:4, order:2},
+      {type:'line', label:'Total GMV', data:dailyArr.map(d=>+d.gmv.toFixed(2)), borderColor:COLOR.navy, backgroundColor:COLOR.navy, yAxisID:'y', tension:.3, pointRadius:3, pointBackgroundColor:COLOR.navy, order:1},
+    ];
+    scales = { y:{ position:'left', grid:{color:COLOR.line}, title:{display:true,text:'GMV $',font:{size:10}}, stacked:true } };
+  } else if(dailyChartView === 'spend'){
+    datasets = [
+      {type:'bar', label:'Ads $', data:dailyArr.map(d=>+d.ads.toFixed(2)), backgroundColor:COLOR.orange, yAxisID:'y', borderRadius:4, order:3},
+      {type:'bar', label:'Promo $', data:dailyArr.map(d=>+d.promo.toFixed(2)), backgroundColor:COLOR.grey, yAxisID:'y', borderRadius:4, order:3},
+      {type:'line', label:'Marketing fee $ (Ads + Promo)', data:dailyArr.map(d=>+d.mkt.toFixed(2)), borderColor:COLOR.navy, backgroundColor:COLOR.navy, yAxisID:'y', tension:.3, pointRadius:3, pointBackgroundColor:COLOR.navy, order:1},
+    ];
+    scales = { y:{ position:'left', grid:{color:COLOR.line}, title:{display:true,text:'$',font:{size:10}} } };
+  } else if(dailyChartView === 'units'){
+    datasets = [
+      {type:'bar', label:'Units sold', data:dailyArr.map(d=>+d.units.toFixed(0)), backgroundColor:COLOR.grey, yAxisID:'y', borderRadius:4, order:2},
+      {type:'line', label:'Ads-driven units', data:dailyArr.map(d=>+d.adsUnits.toFixed(0)), borderColor:COLOR.orange, backgroundColor:COLOR.orange, yAxisID:'y', tension:.3, pointRadius:3, pointBackgroundColor:COLOR.orange, order:1},
+    ];
+    scales = { y:{ position:'left', grid:{color:COLOR.line}, title:{display:true,text:'Units',font:{size:10}} } };
+  } else if(dailyChartView === 'glance'){
+    const gv = d => d.glanceViews > 0 ? d.glanceViews : d.impressions;
+    const cvr = dailyArr.map(d=> d.glanceViews > 0 ? +(d.units/d.glanceViews*100).toFixed(2) : (d.clicks ? +(d.units/d.clicks*100).toFixed(2) : 0));
+    datasets = [
+      {type:'bar', label:'Glance Views', data:dailyArr.map(d=>+gv(d).toFixed(0)), backgroundColor:COLOR.grey, yAxisID:'y', borderRadius:4, order:2},
+      {type:'line', label:'Conversion Rate %', data:cvr, borderColor:COLOR.navy, backgroundColor:COLOR.navy, yAxisID:'y1', tension:.3, pointRadius:3, pointBackgroundColor:COLOR.navy, order:1},
+    ];
+    scales = {
+      y:{ position:'left', grid:{color:COLOR.line}, title:{display:true,text:'Glance Views',font:{size:10}} },
+      y1:{ position:'right', grid:{display:false}, title:{display:true,text:'Conversion Rate %',font:{size:10}}, ticks:{callback:v=>v+'%'} },
+    };
+  } else { // gmvMkt (default)
+    const dailyPctMktGmv = dailyArr.map(d=> d.gmv ? +(d.mkt/d.gmv*100).toFixed(2) : 0);
+    datasets = [
+      {type:'bar', label:'GMV', data:dailyArr.map(d=>+d.gmv.toFixed(2)), backgroundColor:COLOR.grey, yAxisID:'y', borderRadius:4, order:3},
+      {type:'line', label:'Marketing fee $', data:dailyArr.map(d=>+d.mkt.toFixed(2)), borderColor:COLOR.orange, backgroundColor:COLOR.orange, yAxisID:'y1', tension:.3, pointRadius:4, pointBackgroundColor:COLOR.orange, order:1},
+      {type:'line', label:'% MKT/GMV', data:dailyPctMktGmv, borderColor:COLOR.navy, backgroundColor:COLOR.navy, borderDash:[5,3], yAxisID:'y2', tension:.3, pointRadius:3, pointBackgroundColor:COLOR.navy, order:0},
+    ];
+    scales = {
+      y:{ position:'left', grid:{color:COLOR.line}, title:{display:true,text:'GMV $',font:{size:10}} },
+      y1:{ position:'right', grid:{display:false}, title:{display:true,text:'Marketing fee $',font:{size:10}} },
+      y2:{ position:'right', grid:{display:false}, title:{display:true,text:'% MKT/GMV',font:{size:10}}, ticks:{callback:v=>v+'%'} },
+    };
+  }
+
+  charts.daily = new Chart(document.getElementById('chartDaily'), {
+    data:{ labels, datasets },
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{position:'bottom', labels:{boxWidth:10,font:{size:10.5,family:'Calibri, Segoe UI, Roboto, Helvetica Neue, Arial, sans-serif'}}} },
+      scales
+    }
+  });
+}
+
+document.getElementById('dailyGrainToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.cv-btn'); if(!btn) return;
+  document.querySelectorAll('#dailyGrainToggle .cv-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active'); dailyGrain = btn.dataset.grain; renderDailyChart();
+});
+document.getElementById('dailyChartToggle').addEventListener('click', (e)=>{
+  const btn = e.target.closest('.cv-btn');
+  if(!btn) return;
+  document.querySelectorAll('#dailyChartToggle .cv-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  dailyChartView = btn.dataset.view;
+  renderDailyChart();
+});
+
+// Glance views and CR (units on days that have glance views ÷ glance views) from a SKU's daily[]
+function gvStats(daily){
+  let gv = 0, gvUnits = 0;
+  (daily||[]).forEach(d=>{ if(d.glanceViews > 0){ gv += d.glanceViews; gvUnits += Math.max(0, d.units); } }); // returns (negative units) do not count
+  return { glanceViews: gv, cr: gv ? +(gvUnits/gv*100).toFixed(2) : null };
+}
+let lastSortedRows = [];
+function renderTable(rows){
+  const sorted = sortGroups(rows, sortKey, sortDir);
+  lastSortedRows = sorted;
+  // glance views can be missing for some days (e.g. a file without the column): say which days CR covers
+  const allDays = new Set(), gvDays = new Set();
+  rows.forEach(r=>(r.daily||[]).forEach(d=>{ if(d.units || d.gmv) allDays.add(d.date); if(d.glanceViews > 0) gvDays.add(d.date); }));
+  const gvNote = document.getElementById('skuGvNote');
+  if(gvNote){
+    const g = [...gvDays].sort(), dmy = iso => iso.slice(8,10) + '/' + iso.slice(5,7);
+    gvNote.hidden = !allDays.size || [...allDays].every(d => gvDays.has(d));
+    gvNote.textContent = !gvDays.size ? `⚠ Chưa có glance view cho ${allDays.size} ngày đang xem — cột Glance views / CR để trống.`
+      : `⚠ Glance view chỉ có ${gvDays.size}/${allDays.size} ngày đang xem (${dmy(g[0])}${g.length > 1 ? ' → ' + dmy(g[g.length-1]) : ''}). CR chỉ tính trên những ngày có glance view.`;
+  }
+  document.getElementById('skuTbody').innerHTML = sorted.map(r=>{
+    const gmvPace = paceInfo(r.gmvRunratePct);
+    const mktPace = paceInfo(r.mktRunratePct);
+    const flag = (!r.inTargetFile) ? '<span class="tag" style="background:#FBEAEA;color:#D64545">No target</span>' : (!r.inSalesData ? '<span class="tag" style="background:#FBF3DF;color:#B8860B">No sales data</span>' : '');
+    const skuCell = r.asin
+      ? `<a href="https://www.amazon.com/dp/${encodeURIComponent(r.asin)}" target="_blank" rel="noopener noreferrer" title="Open ${r.asin} on Amazon" style="color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px dashed var(--navy)">${r.sku}</a>`
+      : `<b>${r.sku}</b>`;
+    const docCls = r.docBand==='OOS' || r.docBand==='DOC <14d' ? 'red' : r.docBand==='DOC 14–30d' ? 'amber' : r.docBand==='DOC 30–90d' ? 'green' : 'gray';
+    const docLabel = r.docDays===null ? 'N/A' : r.docDays===0 ? 'OOS' : !Number.isFinite(r.docDays) ? '∞' : Math.round(r.docDays)+'d';
+    const docTitle = r.docDays===null ? 'No sales data this month to compute velocity'
+      : r.docDays===0 ? 'Out of stock (0 units salable)'
+      : !Number.isFinite(r.docDays) ? 'No sales in the last 7 days — has stock, will not run out at current pace'
+      : `Trailing 7-day velocity: ${r.docVelocity.toFixed(2)} units/day. Projected stockout: ${r.stockoutDate}`;
+    const docCell = `<span class="badge ${docCls}" title="${docTitle}">${docLabel}</span>`;
+    return `<tr>
+      <td>${escapeHtml(r.team)}</td><td>${escapeHtml(r.leader)}</td>
+      <td>${r.pic}</td><td>${r.mainPL}</td><td>${r.subPL}</td>
+      <td>${skuCell} ${flag}</td>
+      <td class="name-cell" title="${(r.productName||'').replace(/"/g,'&quot;')}">${r.productName||''}</td>
+      <td>${r.channel}</td><td>${r.portfolio}</td><td>${docCell}</td>
+      <td class="num">${fmtInt(r.salableY4A)}</td>
+      <td class="num">${fmtInt(r.salableAMZ)}</td>
+      <td class="num">${fmtMoney(r.targetGMV)}</td>
+      <td class="num">${fmtMoney2(r.actualGMV)}</td>
+      <td><div class="progress-cell"><span class="badge ${gmvPace.cls}">${r.gmvRunratePct.toFixed(0)}%</span></div></td>
+      <td class="num">${fmtMoney(r.mktTarget)}</td>
+      <td class="num">${fmtMoney2(r.mktActual)}</td>
+      <td><div class="progress-cell"><span class="badge ${mktPace.cls}">${r.mktRunratePct.toFixed(0)}%</span></div></td>
+      <td class="num">${fmtInt(r.targetUnits)}</td>
+      <td class="num">${fmtInt(r.actualUnits)}</td>
+      <td class="num" style="color:${cm3Color(r.cm3Pct)}">${r.cm3 === null ? '—' : fmtMoney(r.cm3)}</td>
+      <td class="num" style="color:${cm3Color(r.cm3Pct)}">${fmtPctOrDash(r.cm3Pct)}</td>
+      <td style="white-space:normal;min-width:180px">${window.V2 ? V2.actionLabels(r) : ''}</td>
+      <td class="num">${r.glanceViews ? fmtInt(r.glanceViews) : '—'}</td>
+      <td class="num">${r.cr === null || r.cr === undefined ? '—' : r.cr.toFixed(2) + '%'}</td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="25" style="text-align:center;padding:24px;color:#66707C">No SKU matches the current filters</td></tr>';
+}
+
+document.querySelectorAll('#skuTable thead th').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const k = th.dataset.k;
+    if(sortKey===k) sortDir *= -1; else { sortKey=k; sortDir=-1; }
+    renderAll();
+  });
+});
+
+function renderAll(){
+  const filtered = getFiltered();
+  const rangedRows = applyDateRange(filtered);
+  rangedRows.forEach(r=>{ r.cm3 = cm3Of(r); r.cm3Pct = r.cm3 !== null && r.actualGMV ? r.cm3/r.actualGMV*100 : null; });
+  document.getElementById('resultCount').textContent = rangedRows.length + ' / ' + ROWS.length + ' SKU';
+  renderMocStrip(rangedRows);
+  renderActionCodeStrip(rangedRows);
+  renderKPIs(rangedRows, filtered);
+  renderCharts(rangedRows);
+  if(window.V2 && V2.renderTrackingExtras) V2.renderTrackingExtras(rangedRows);
+  let tableRows = applyQuickFilters(rangedRows);
+  if(mocBandFilter) tableRows = tableRows.filter(r=>r.docBand===mocBandFilter);
+  if(actionCodeFilter){
+    const flag = ACTION_FLAGS.find(f=>f.key===actionCodeFilter);
+    if(flag) tableRows = tableRows.filter(flag.test);
+  }
+  if(window.V2 && V2.applyIssueFilter) tableRows = V2.applyIssueFilter(tableRows);
+  renderTable(tableRows);
+}
+
+// Export exactly what's on screen (current filters + sort) to a .xlsx file
+function exportSkuTable(){
+  if(!lastSortedRows.length){ alert('No rows to export — adjust your filters first.'); return; }
+  const data = lastSortedRows.map(r=>({
+    'Team': r.team, 'Leader': r.leader, 'PIC': r.pic, 'Main PL': r.mainPL, 'Sub PL': r.subPL, 'SKU': r.sku, 'Product Name': r.productName||'',
+    'Channel': r.channel, 'Portfolio': r.portfolio,
+    'DOC (days)': r.docDays===null ? 'N/A' : r.docDays===0 ? 'OOS' : !Number.isFinite(r.docDays) ? '999+' : Math.round(r.docDays),
+    'DOC Band': r.docBand, 'Stockout Date': r.stockoutDate || '',
+    'Inv Y4A': r.salableY4A, 'Inv AMZ': r.salableAMZ,
+    'Target GMV': r.targetGMV, 'Actual GMV': r.actualGMV, 'GMV Run-rate %': +r.gmvRunratePct.toFixed(1),
+    'Target MKT $': r.mktTarget, 'Actual MKT $': r.mktActual, 'MKT Run-rate %': +r.mktRunratePct.toFixed(1),
+    'Target Units': r.targetUnits, 'Actual Units': r.actualUnits,
+    'CM3 $': r.cm3 === null ? '' : +r.cm3.toFixed(2), 'CM3 %': r.cm3Pct === null ? '' : +r.cm3Pct.toFixed(1),
+    'Glance Views': r.glanceViews || 0, 'CR %': r.cr === null || r.cr === undefined ? '' : r.cr,
+  }));
+  const ws = XLSX.utils.json_to_sheet(data);
+  ws['!cols'] = Object.keys(data[0]).map(k => ({ wch: Math.max(k.length, 12) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'SKU Breakdown');
+  const month = document.getElementById('fMonth').value || '';
+  const stamp = new Date().toISOString().slice(0,10);
+  XLSX.writeFile(wb, `Yes4All_SSO_SKU_Breakdown_${month}_${stamp}.xlsx`);
+}
+
+// ================= PRODUCT PERFORMANCE =================
+let perfSortKey = 'trendPct', perfSortDir = 1; // ascending by default: worst decliners float to the top
+
+function perfGetFilteredRows(){
+  const team = document.getElementById('perfFTeam').value;
+  const leader = document.getElementById('perfFLeader').value;
+  const pic = document.getElementById('perfFPic').value;
+  const mpl = document.getElementById('perfFMainPL').value;
+  const lifecycle = document.getElementById('perfFLifecycle').value;
+  const trend = document.getElementById('perfFTrend').value;
+  const src = window.V3 && V3.perfApply ? V3.perfApply(ROWS) : ROWS;
+  return src.filter(r=>
+    (!team || r.team===team) && (!leader || r.leader===leader) &&
+    (!pic || r.pic===pic) && (!mpl || r.mainPL===mpl) && (!lifecycle || r.lifecycle===lifecycle) && (!trend || r.trendLabel===trend) && (!window.V2 || V2.matchGS(r))
+  );
+}
+
+function refreshPerfSelects(){
+  resetTeamSelect('perfFTeam');
+  cascadeOrgSelects(ROWS, 'perfFTeam', 'perfFLeader', 'perfFPic');
+  document.getElementById('perfFMainPL').innerHTML = '<option value="">All</option>';
+  fillSelect('perfFMainPL', uniq('mainPL'));
+  document.getElementById('perfFLifecycle').innerHTML = '<option value="">All</option>';
+  fillSelect('perfFLifecycle', uniq('lifecycle'));
+}
+
+// ---- Product Health chip drill-down (Product Performance tab) ----------
+let perfHealthFilter = null;
+const PERF_HEALTH_TESTS = {
+  Declining: r=>r.trendLabel==='Declining',
+  Stable: r=>r.trendLabel==='Stable',
+  Growing: r=>r.trendLabel==='Growing',
+  atRisk: r=>r.docBand==='OOS' || r.docBand==='DOC <14d',
+  overstock: r=>r.docBand==='DOC >90d',
+};
+
+// Rule-based flag: stock risk first (can't sell what you don't have / dead
+// capital sitting in overstock), then trend, then whether ads spend lines up
+// with the trend. Meant as a starting point for the team to triage, not a
+// final verdict — always sanity-check against listing/competition context.
+function suggestAction(r){
+  if(r.docBand==='OOS') return {label:'Restock now — OOS', cls:'red'};
+  if(r.docBand==='DOC <14d') return {label:'Reorder soon (<14d cover)', cls:'red'};
+  if(r.trendLabel==='Declining' && r.docBand==='DOC >90d') return {label:'Overstock — push promo / clear', cls:'gray'};
+  const tacos = r.actualGMV ? (r.adsActual/r.actualGMV*100) : null;
+  if(r.trendLabel==='Declining' && r.adsActual>0 && tacos!==null && tacos>15) return {label:'Declining + high TACOS — review ads/price', cls:'amber'};
+  if(r.trendLabel==='Declining' && !(r.adsActual>0)) return {label:'Declining, no ads running — consider launching', cls:'amber'};
+  if(r.trendLabel==='Declining') return {label:'Declining — check listing/competition/price', cls:'amber'};
+  if(r.trendLabel==='Growing') return {label:'Growing — maintain / scale', cls:'green'};
+  if(r.trendLabel==='Stable') return {label:'Stable — monitor', cls:'gray'};
+  return {label:'Not enough data yet', cls:'gray'};
+}
+
+function renderPerfKpiStrip(rows){
+  const c = {Declining:0, Stable:0, Growing:0, atRisk:0, overstock:0};
+  rows.forEach(r=>{
+    if(r.trendLabel==='Declining') c.Declining++;
+    else if(r.trendLabel==='Stable') c.Stable++;
+    else if(r.trendLabel==='Growing') c.Growing++;
+    if(r.docBand==='OOS' || r.docBand==='DOC <14d') c.atRisk++;
+    if(r.docBand==='DOC >90d') c.overstock++;
+  });
+  const chips = [
+    {key:'Declining', n:c.Declining, label:'Declining', color:COLOR.red, bg:'#FBEAEA'},
+    {key:'Stable', n:c.Stable, label:'Stable', color:'#66707C', bg:'#EEF1F5'},
+    {key:'Growing', n:c.Growing, label:'Growing', color:COLOR.green, bg:'#E7F5EE'},
+    {key:'atRisk', n:c.atRisk, label:'Stock risk (OOS/<14d)', color:COLOR.red, bg:'#FBEAEA'},
+    {key:'overstock', n:c.overstock, label:'Overstock (>90d)', color:COLOR.navy, bg:'#E9EEF5'},
+  ];
+  document.getElementById('perfKpiStrip').innerHTML = '<span class="lbl">Product health (this view, SKU count) — click a bucket to filter the detail table below</span>' +
+    chips.map(o=>{
+      const active = perfHealthFilter === o.key;
+      return `<span class="moc-chip clickable${active?' active':''}" data-health="${o.key}" style="background:${o.bg};color:${o.color}"><span class="n">${o.n}</span> ${o.label}</span>`;
+    }).join('') +
+    (perfHealthFilter ? `<span class="moc-chip clear-chip" data-clear="1" style="background:#fff;color:#66707C;border:1px dashed #C7CFDA">&times; Clear</span>` : '');
+}
+
+document.getElementById('perfKpiStrip').addEventListener('click', (e)=>{
+  const chip = e.target.closest('.moc-chip');
+  if(!chip) return;
+  if(chip.dataset.clear){ perfHealthFilter = null; renderPerfTab(); return; }
+  const key = chip.dataset.health;
+  if(!key) return;
+  perfHealthFilter = (perfHealthFilter === key) ? null : key;
+  renderPerfTab();
+});
+
+function perfMoverRowHTML(r, delta){
+  return `<tr><td><b>${r.sku}</b></td>
+    <td class="name-cell" title="${(r.productName||'').replace(/"/g,'&quot;')}">${r.productName||''}</td>
+    <td>${r.pic}</td>
+    <td class="num">${fmtMoney(r.prior7Gmv)}</td><td class="num">${fmtMoney(r.trailing7Gmv)}</td>
+    <td class="num" style="color:${delta<0?COLOR.red:COLOR.green};font-weight:700">${delta<0?'-':'+'}${fmtMoney(Math.abs(delta))}</td>
+    <td class="num" style="color:${delta<0?COLOR.red:COLOR.green};font-weight:700">${Number.isFinite(r.trendPct)?(r.trendPct>0?'+':'')+r.trendPct.toFixed(1)+'%':'new'}</td>
+  </tr>`;
+}
+
+function renderPerfMovers(rows){
+  const withTrend = rows.filter(r=>r.trendLabel!=='N/A');
+  const byDelta = withTrend.map(r=>({r, delta:+(r.trailing7Gmv - r.prior7Gmv).toFixed(2)}));
+  const decliners = byDelta.filter(x=>x.delta<0).sort((a,b)=>a.delta-b.delta).slice(0,10);
+  const growers = byDelta.filter(x=>x.delta>0).sort((a,b)=>b.delta-a.delta).slice(0,10);
+  document.getElementById('perfDeclinersBody').innerHTML = decliners.map(x=>perfMoverRowHTML(x.r, x.delta)).join('')
+    || '<tr><td colspan="7" style="text-align:center;padding:16px;color:#66707C">No decliners in this view</td></tr>';
+  document.getElementById('perfGrowersBody').innerHTML = growers.map(x=>perfMoverRowHTML(x.r, x.delta)).join('')
+    || '<tr><td colspan="7" style="text-align:center;padding:16px;color:#66707C">No growers in this view</td></tr>';
+}
+
+let lastSortedPerfRows = [];
+function renderPerfTable(rows){
+  const sorted = [...rows].sort((a,b)=>{
+    let va = a[perfSortKey], vb = b[perfSortKey];
+    if(perfSortKey==='tacos'){ va = a.actualGMV? a.adsActual/a.actualGMV*100 : -1; vb = b.actualGMV? b.adsActual/b.actualGMV*100 : -1; }
+    if(typeof va === 'string') return perfSortDir*va.localeCompare(vb);
+    va = Number.isFinite(va) ? va : (va===Infinity?1e15:-1e15);
+    vb = Number.isFinite(vb) ? vb : (vb===Infinity?1e15:-1e15);
+    return perfSortDir*((va||0)-(vb||0));
+  });
+  lastSortedPerfRows = sorted;
+  document.getElementById('perfTbody').innerHTML = sorted.map(r=>{
+    const skuCell = r.asin
+      ? `<a href="https://www.amazon.com/dp/${encodeURIComponent(r.asin)}" target="_blank" rel="noopener noreferrer" title="Open ${r.asin} on Amazon" style="color:var(--navy);font-weight:700;text-decoration:none;border-bottom:1px dashed var(--navy)">${r.sku}</a>`
+      : `<b>${r.sku}</b>`;
+    const trendCls = r.trendLabel==='Declining' ? 'red' : r.trendLabel==='Growing' ? 'green' : r.trendLabel==='Stable' ? 'gray' : 'gray';
+    const trendLbl = r.trendLabel==='N/A' ? 'N/A' : (Number.isFinite(r.trendPct) ? (r.trendPct>0?'+':'')+r.trendPct.toFixed(1)+'%' : 'new') + ' ' + r.trendLabel;
+    const docCls = r.docBand==='OOS' || r.docBand==='DOC <14d' ? 'red' : r.docBand==='DOC 14–30d' ? 'amber' : r.docBand==='DOC 30–90d' ? 'green' : 'gray';
+    const docLabel = r.docDays===null ? 'N/A' : r.docDays===0 ? 'OOS' : !Number.isFinite(r.docDays) ? '∞' : Math.round(r.docDays)+'d';
+    const tacos = r.actualGMV ? (r.adsActual/r.actualGMV*100) : null;
+    const action = suggestAction(r);
+    return `<tr>
+      <td>${escapeHtml(r.team)}</td><td>${r.pic}</td><td>${r.mainPL}</td>
+      <td>${skuCell}</td>
+      <td class="name-cell" title="${(r.productName||'').replace(/"/g,'&quot;')}">${r.productName||''}</td>
+      <td><span class="badge ${trendCls}">${trendLbl}</span></td>
+      <td><span class="badge ${docCls}">${docLabel}</span></td>
+      <td class="num">${tacos===null?'—':tacos.toFixed(1)+'%'}</td>
+      <td class="num">${fmtMoney2(r.adsActual)}</td>
+      <td class="num">${fmtMoney2(r.actualGMV)}</td>
+      <td class="num" style="color:${cm3Color(r.cm3Pct)}">${r.cm3 === null ? '—' : fmtMoney(r.cm3)}</td>
+      <td class="num" style="color:${cm3Color(r.cm3Pct)}">${fmtPctOrDash(r.cm3Pct)}</td>
+      <td><span class="badge ${action.cls}">${action.label}</span></td>
+    </tr>`;
+  }).join('') || '<tr><td colspan="13" style="text-align:center;padding:24px;color:#66707C">No SKU matches the current filters</td></tr>';
+}
+
+function renderPerfTab(){
+  if(!ROWS.length) return;
+  if(window.V3 && V3.perfEnsure && V3.perfEnsure()) return; // period data is loading; renders again when ready
+  const rows = perfGetFilteredRows();
+  rows.forEach(r=>{ r.cm3 = cm3Of(r); r.cm3Pct = r.cm3 !== null && r.actualGMV ? r.cm3/r.actualGMV*100 : null; });
+  document.getElementById('perfResultCount').textContent = rows.length + ' / ' + ROWS.length + ' SKU';
+  renderPerfKpiStrip(rows);
+  renderPerfMovers(rows);
+  let tableRows = perfHealthFilter ? rows.filter(PERF_HEALTH_TESTS[perfHealthFilter]) : rows;
+  if(document.getElementById('perfHideNoData').checked) tableRows = tableRows.filter(r => r.actualGMV > 0 || r.adsActual > 0 || r.trendLabel !== 'N/A');
+  renderPerfTable(tableRows);
+  if(window.V3 && V3.renderPerfCharts) V3.renderPerfCharts(rows);
+}
+
+function exportPerfTable(){
+  if(!lastSortedPerfRows.length){ alert('No rows to export — adjust your filters first.'); return; }
+  const data = lastSortedPerfRows.map(r=>{
+    const tacos = r.actualGMV ? (r.adsActual/r.actualGMV*100) : null;
+    return {
+      'Team': r.team, 'Leader': r.leader, 'PIC': r.pic, 'Main PL': r.mainPL, 'SKU': r.sku, 'Product Name': r.productName||'',
+      'Trend %': Number.isFinite(r.trendPct)?r.trendPct:'', 'Trend': r.trendLabel,
+      'DOC (days)': r.docDays===null?'N/A':r.docDays===0?'OOS':!Number.isFinite(r.docDays)?'999+':Math.round(r.docDays),
+      'TACOS %': tacos===null?'':+tacos.toFixed(1),
+      'Ads Spend (kỳ)': r.adsActual, 'GMV (kỳ)': r.actualGMV,
+      'CM3 $ (kỳ)': r.cm3 === null ? '' : +r.cm3.toFixed(2), 'CM3 % (kỳ)': r.cm3Pct === null ? '' : +r.cm3Pct.toFixed(1), 'Kỳ': (window.V3 && V3.perfLabel) ? V3.perfLabel() : '',
+      'Suggested Action': suggestAction(r).label,
+    };
+  });
+  const ws = XLSX.utils.json_to_sheet(data);
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'Product Performance');
+  XLSX.writeFile(wb, `Yes4All_SSO_Product_Performance_${document.getElementById('fMonth').value}_${new Date().toISOString().slice(0,10)}.xlsx`);
+}
+
+document.querySelectorAll('#perfTable thead th').forEach(th=>{
+  th.addEventListener('click', ()=>{
+    const k = th.dataset.k;
+    if(perfSortKey===k) perfSortDir *= -1; else { perfSortKey=k; perfSortDir=1; }
+    renderPerfTab();
+  });
+});
+
+// ================= HELPERS =================
+function todayISO(){
+  const d = new Date();
+  return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+}
+function escapeHtml(s){ return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ================= BOOT =================
+async function boot(){
+  try{
+    const months = await fetchMonths();
+    if(!months.length){
+      showFatalBanner('No target data found yet. From a terminal with SUPABASE_URL / SUPABASE_SERVICE_KEY set, run: <code>python ingest.py target "SSO_US_....html"</code> then reload this page.');
+      return;
+    }
+    const monthSel = document.getElementById('fMonth');
+    monthSel.innerHTML = months.map(m=>`<option value="${m}">${monthLabel(m)}</option>`).join('');
+    const thisMonth = todayISO().slice(0,7) + '-01';
+    const selected = months.includes(thisMonth) ? thisMonth : ([...months].reverse().find(m => m <= thisMonth) || months[months.length-1]);
+    monthSel.value = selected;
+
+    await loadMonth(selected);
+    if(window.V2 && V2.afterLoadMonth) await V2.afterLoadMonth();
+    renderHeaderAsOf();
+    setDateRangeBounds(selected);
+
+    refreshFilterSelects();
+    refreshPerfSelects();
+    renderPerfTab();
+
+    monthSel.addEventListener('change', async ()=>{
+      await loadMonth(monthSel.value);
+      if(window.V2 && V2.afterLoadMonth) await V2.afterLoadMonth();
+      renderHeaderAsOf();
+      setDateRangeBounds(monthSel.value);
+      refreshFilterSelects();
+      refreshPerfSelects();
+      renderAll();
+      renderPerfTab();
+      if(window.V2 && V2.onMonthChange) V2.onMonthChange();
+    });
+    // Product Performance: Team -> Leader -> PIC cascade
+    ['perfFTeam','perfFLeader'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{
+      cascadeOrgSelects(ROWS, 'perfFTeam', 'perfFLeader', 'perfFPic'); renderPerfTab();
+    }));
+    document.getElementById('perfFPic').addEventListener('change', renderPerfTab);
+    document.getElementById('perfFMainPL').addEventListener('change', renderPerfTab);
+    document.getElementById('perfFLifecycle').addEventListener('change', renderPerfTab);
+    document.getElementById('perfFTrend').addEventListener('change', renderPerfTab);
+    document.getElementById('perfBtnReset').addEventListener('click', ()=>{
+      ['perfFTeam','perfFLeader','perfFPic','perfFMainPL','perfFLifecycle','perfFTrend'].forEach(id=>document.getElementById(id).value='');
+      cascadeOrgSelects(ROWS, 'perfFTeam', 'perfFLeader', 'perfFPic');
+      perfHealthFilter = null;
+      renderPerfTab();
+    });
+    document.getElementById('btnExportPerf').addEventListener('click', exportPerfTable);
+    document.getElementById('perfHideNoData').addEventListener('change', renderPerfTab);
+    // Tracking Target: Team -> Leader -> PIC -> Main PL -> Sub PL cascade
+    ['fTeam','fLeader','fPic','fMainPL'].forEach(id=>document.getElementById(id).addEventListener('change', ()=>{ updateDependentSelects(); renderAll(); }));
+    ['fSubPL','fChannel','fPortfolio'].forEach(id=>document.getElementById(id).addEventListener('change', renderAll));
+    document.getElementById('fSearch').addEventListener('input', renderAll);
+    ['fDateFrom','fDateTo'].forEach(id=>document.getElementById(id).addEventListener('change', renderAll));
+    ['qfInvPositive','qfRunratePositive'].forEach(id=>document.getElementById(id).addEventListener('change', renderAll));
+    document.getElementById('fExcludeSpt').addEventListener('change', renderAll);
+    document.getElementById('btnExportSku').addEventListener('click', exportSkuTable);
+    document.getElementById('btnReset').addEventListener('click', ()=>{
+      ['fTeam','fLeader','fPic','fChannel','fPortfolio'].forEach(id=>document.getElementById(id).value='');
+      updateDependentSelects();
+      document.getElementById('fSearch').value='';
+      document.getElementById('fDateFrom').value='';
+      document.getElementById('fDateTo').value='';
+      document.getElementById('qfInvPositive').checked=false;
+      document.getElementById('qfRunratePositive').checked=false;
+      document.getElementById('fExcludeSpt').checked=false;
+      mocBandFilter = null;
+      actionCodeFilter = null;
+      renderAll();
+    });
+    renderAll();
+  }catch(err){
+    console.error(err);
+    showFatalBanner('Could not load data from Supabase: ' + err.message + '<br><br>Check that SUPABASE_URL / SUPABASE_ANON_KEY are correct and that the schema (supabase_schema.sql) has been run.');
+  }
+}
+boot();
+</script>
+</body>
+</html>
