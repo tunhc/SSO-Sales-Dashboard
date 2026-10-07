@@ -179,20 +179,33 @@ Deno.serve(async (req) => {
     }
 
     // hour-level rows first: the live race reads them even when the daily rows are kept
-    let hourRows: number | string = 0;
-    if (res.hours.length) {
-      const h = await db.rpc("replace_sales_hours", { p_rows: res.hours, p_source: source });
-      if (h.error) throw new Error("sales_hourly: " + h.error.message);
-      hourRows = h.data as number;
+    // one day per call: each statement stays well under the 8 s statement timeout
+    const byDate = <T extends { date: string }>(rows: T[]) => {
+      const m = new Map<string, T[]>();
+      for (const r of rows) { const a = m.get(r.date); if (a) a.push(r); else m.set(r.date, [r]); }
+      return [...m.entries()].sort((a, b) => a[0].localeCompare(b[0]));
+    };
+    let hourRows = 0;
+    for (const [day, rows] of byDate(res.hours)) {
+      const h = await db.rpc("replace_sales_hours", { p_rows: rows, p_source: source });
+      if (h.error) throw new Error(`sales_hourly ${day}: ` + h.error.message);
+      hourRows += h.data as number;
     }
     if (!out.length) {
       await db.from("ingest_runs").insert({ source, status: "ok", file_hash: hash, rows_in: 0, rows_loaded: 0,
         message: `sales_hourly ${hourRows} dòng; sales_daily giữ nguyên (ngày đã có từ file daily / đã khóa)` });
       return json({ ok: true, ...info, hourRows });
     }
-    const { data, error } = await db.rpc("replace_sales_days", { p_rows: out, p_source: source, p_hash: hash });
-    if (error) throw new Error(error.message);
-    return json({ ok: true, ...info, hourRows, ...data });
+    let dayRows = 0, gmv = 0;
+    const days: string[] = [];
+    for (const [day, rows] of byDate(out)) {
+      const { data, error } = await db.rpc("replace_sales_days", { p_rows: rows, p_source: source, p_hash: hash });
+      if (error) throw new Error(`sales_daily ${day}: ` + error.message);
+      dayRows += (data as { rows?: number })?.rows ?? 0;
+      gmv += (data as { gmv?: number })?.gmv ?? 0;
+      days.push(day);
+    }
+    return json({ ok: true, ...info, hourRows, days: info.days, loadedDays: days, rows: dayRows, gmv: Math.round(gmv * 100) / 100 });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await logError(msg);
