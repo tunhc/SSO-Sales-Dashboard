@@ -221,6 +221,45 @@ def load_inventory(path):
     return snapshot, stock, inc_rows
 
 
+def load_hourly(path):
+    """'usa_amz_sso_hourly -- usa' export: one row per ASIN per hour (date_time_local).
+    No GMV column, so GMV = ordered_nmv (same rule as the team dashboard's pull-hourly);
+    Ads / Promo are summed from their parts. Returns (hour rows, day rows)."""
+    src = os.path.basename(path)
+    hours, days = {}, {}
+    for r in sheet_rows(path):
+        ts, sku = r.get("date_time_local"), txt(r.get("sku"))
+        if not sku or not isinstance(ts, dt.datetime) or txt(r.get("country")) not in (None, "USA"):
+            continue
+        g = lambda c: num(r.get(c))
+        x = {"units": g("ordered_units"), "gmv": g("ordered_nmv"),
+             "ads": g("sb_spend") + g("sd_spend") + g("sp_spend"),
+             "promo": g("coupon_spend") + g("price_discount_spend") + g("lightning_deal_spend") + g("best_deal_spend") + g("vm_promo_spend"),
+             "ads_gmv": g("sb_ordered_nmv") + g("sd_ordered_nmv") + g("sp_ordered_nmv"),
+             "clicks": g("sb_clicks") + g("sd_clicks") + g("sp_clicks"),
+             "impressions": g("sb_impressions") + g("sd_impressions") + g("sp_impressions"),
+             "glance_views": g("glance_view")}
+        day, hour = ts.date(), ts.hour
+        h = hours.setdefault((sku, day, hour), {"sku": sku, "ts": f"{day} {hour:02d}:00:00", "date": day.isoformat(), "hour": hour,
+                                                **{k: 0.0 for k in x}, "source_file": src})
+        for k, v in x.items():
+            h[k] += v
+        d = days.get((sku, day))
+        if d is None:
+            d = days[(sku, day)] = {c: 0.0 for c in SALES_COLS[2:-2]}
+            d.update(sku=sku, date=day, category=None, source_file=src)
+        d["units"] += x["units"]; d["gmv"] += x["gmv"]; d["ordered_nmv"] += x["gmv"]; d["ads"] += x["ads"]; d["promo"] += x["promo"]
+        d["ads_gmv"] += x["ads_gmv"]; d["total_clicks"] += x["clicks"]; d["total_impressions"] += x["impressions"]; d["glance_views"] += x["glance_views"]
+        d["ads_units"] += g("sb_ordered_units") + g("sd_ordered_units") + g("sp_ordered_units")
+        d["sp_spend"] += g("sp_spend"); d["sb_spend"] += g("sb_spend"); d["sd_spend"] += g("sd_spend")
+        d["promo_coupon"] += g("coupon_spend"); d["promo_deal"] += g("best_deal_spend") + g("lightning_deal_spend") + g("vm_promo_spend")
+        d["promo_discount"] += g("price_discount_spend")
+    rnd = lambda o: {k: round(v, 2) if isinstance(v, float) else v for k, v in o.items()}
+    # keep hours with some activity (impressions alone do not count), like the team dashboard
+    hour_rows = [rnd(h) for h in hours.values() if h["units"] or h["gmv"] or h["ads"] or h["promo"] or h["clicks"] or h["glance_views"]]
+    return hour_rows, [rnd(d) for d in days.values()]
+
+
 # ---------------------------------------------------------------------------
 # 3) daily sales
 # ---------------------------------------------------------------------------
@@ -379,7 +418,18 @@ def build(a):
         for s in {r["sku"] for r in sales} - set(skus):
             cat = next(r["category"] for r in sales if r["sku"] == s)
             skus[s] = {**{c: None for c in SKU_COLS}, "sku": s, "main_pl": cat}
-    return month_iso, list(skus.values()), targets, demand, sales, incoming
+    hourly = []
+    if a.hourly:
+        print("hourly")
+        hourly, hdays = load_hourly(a.hourly)
+        unknown = {r["sku"] for r in hourly} - set(skus)
+        hourly = [r for r in hourly if r["sku"] in skus]
+        # day totals from the hourly file only for days no daily export covers (daily files are final)
+        covered = {r["date"] for r in sales}
+        hdays = [r for r in hdays if r["sku"] in skus and r["date"].isoformat() >= a.hourly_daily_from and r["date"] not in covered]
+        sales = sales + hdays
+        print(f"  {len(hourly):,} SKU-hours · {len(hdays):,} SKU-days from {a.hourly_daily_from} · {len(unknown)} SKUs not in the list skipped")
+    return month_iso, list(skus.values()), targets, demand, sales, incoming, hourly
 
 
 # ---------------------------------------------------------------------------
@@ -411,13 +461,15 @@ def main():
     ap.add_argument("--tracking-sheet", default="Tracking_0925")
     ap.add_argument("--daily", nargs="*")
     ap.add_argument("--only-teams", nargs="*", help="load sales only for SKUs of these teams, e.g. \"Team Đồng Dinh\" Spreetail")
+    ap.add_argument("--hourly", help="usa_amz_sso_hourly -- usa.xlsx: sales_hourly (live race) + day totals for recent days")
+    ap.add_argument("--hourly-daily-from", default="2026-10-01", help="write day totals from the hourly file only from this date")
     ap.add_argument("--inventory", help="Yes4All US Inventory <date>.xlsx (sheet report)")
     ap.add_argument("--max-part-kb", type=int, default=900)
     ap.add_argument("--push", action="store_true", help="upsert into Supabase (needs SUPABASE_SERVICE_KEY)")
     a = ap.parse_args()
     os.makedirs(a.out, exist_ok=True)
 
-    month_iso, skus, targets, demand, sales, incoming = build(a)
+    month_iso, skus, targets, demand, sales, incoming, hourly = build(a)
     by_team = {}
     for s in skus:
         by_team[s.get("team")] = by_team.get(s.get("team"), 0) + 1
@@ -464,6 +516,8 @@ def main():
         push("demand_forecast_monthly", demand, ["sku", "month"], key)
         if incoming:
             push("incoming_weekly", incoming, ["sku", "week_start", "snapshot_date"], key)
+        if hourly:
+            push("sales_hourly", hourly, ["sku", "ts"], key)
         if sales:
             push("sales_daily", [{**r, "date": r["date"].isoformat()} for r in sales], ["sku", "date"], key)
     print("done")
