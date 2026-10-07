@@ -7,6 +7,10 @@ Mỗi giờ Power Automate gửi file `usa_amz_sso_hourly -- usa.xlsx` cho Edge 
 - `sales_daily`: tổng theo ngày cho các ngày chưa có file daily (file daily là số chốt, không bị ghi đè).
   Ngày trước `data_locks.lock_before` (01/09/2026) không bao giờ bị đụng tới.
 
+File hourly cộng dồn cả tháng (dòng mới nhất ở trên), nên mỗi lần function chỉ đọc **2 ngày gần nhất**
+(hôm nay + hôm qua) rồi dừng, để nằm trong giới hạn ~2 giây CPU của Edge Function. Các ngày cũ hơn đã được nạp ở những lần trước.
+Đổi số ngày: header `x-days: N` hoặc secret `HOURLY_KEEP_DAYS` (0 = đọc cả file, chỉ dùng khi file nhỏ).
+
 Kết quả mỗi lần chạy ghi vào bảng `ingest_runs` (ok / skipped / error). File không đổi so với lần trước thì bỏ qua.
 
 ## 1. Đặt secret (một lần)

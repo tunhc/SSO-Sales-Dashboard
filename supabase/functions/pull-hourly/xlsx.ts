@@ -94,7 +94,7 @@ async function sheetList(b: Uint8Array, zip: Map<string, Entry>): Promise<{ name
 export async function readSheetRows(
   b: Uint8Array,
   accept: (header: string[]) => false | number[],
-  onRow: (cells: Cell[]) => void,
+  onRow: (cells: Cell[]) => void | false,   // return false to stop reading (rest of the sheet is skipped)
   wanted?: string,
 ): Promise<{ sheet: string; header: string[]; sheets: string[] } | null> {
   const zip = zipEntries(b);
@@ -154,7 +154,7 @@ export async function readSheetRows(
 
   for (const s of order) {
     const reader = entryStream(b, zip.get(s.path)!).getReader();
-    let buf = "", header: string[] | null = null, need: Uint8Array | null = null, rejected = false;
+    let buf = "", header: string[] | null = null, need: Uint8Array | null = null, rejected = false, stopped = false;
     const flush = () => {
       let start = 0;
       for (;;) {
@@ -173,7 +173,7 @@ export async function readSheetRows(
           if (!cols) { rejected = true; return; }
           need = new Uint8Array(header.length + 1);
           for (const c of cols) need[c] = 1;
-        } else if (cells.length) onRow(cells);
+        } else if (cells.length && onRow(cells) === false) { stopped = true; return; }
       }
       buf = buf.slice(start);
     };
@@ -182,7 +182,7 @@ export async function readSheetRows(
       if (done) break;
       buf += value;
       flush();
-      if (rejected) { await reader.cancel(); break; }
+      if (rejected || stopped) { await reader.cancel(); break; }
     }
     if (header && !rejected) return { sheet: s.name, header, sheets: sheets.map((x) => x.name) };
   }

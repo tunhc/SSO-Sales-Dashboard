@@ -30,7 +30,7 @@
 // Optional: HOURLY_SHEET (default: the first sheet with a "sku" column).
 // The workbook is read with the streaming reader in xlsx.ts (SheetJS ran out of memory).
 import { createClient } from "npm:@supabase/supabase-js@2";
-import { downloadUrls, graphShareId, layoutOf, type Layout, makeAggregator, normKey, perDay, type Row, wantedColumns } from "./hourly.ts";
+import { downloadUrls, graphShareId, isoDate, layoutOf, type Layout, makeAggregator, normKey, perDay, type Row, wantedColumns } from "./hourly.ts";
 import { readSheetRows } from "./xlsx.ts";
 
 const json = (body: unknown, status = 200) =>
@@ -128,15 +128,23 @@ Deno.serve(async (req) => {
       }
     }
 
-    const [{ data: skus, error: skuErr }, { data: lock }] = await Promise.all([
-      db.from("skus").select("sku").range(0, 9999),
-      db.from("data_locks").select("lock_before").eq("table_name", "sales_daily").maybeSingle(),
-    ]);
-    if (skuErr) throw new Error(skuErr.message);
-    const managed = (skus ?? []).map((s: { sku: string }) => s.sku);
+    // the API returns at most 1000 rows per request: page through the SKU list
+    const managed: string[] = [];
+    for (let from = 0; ; from += 1000) {
+      const { data, error: skuErr } = await db.from("skus").select("sku").order("sku").range(from, from + 999);
+      if (skuErr) throw new Error(skuErr.message);
+      managed.push(...(data ?? []).map((s: { sku: string }) => s.sku));
+      if (!data || data.length < 1000) break;
+    }
+    const { data: lock } = await db.from("data_locks").select("lock_before").eq("table_name", "sales_daily").maybeSingle();
     const lockBefore: string = lock?.lock_before ?? "0000-01-01";
 
     // Stream the sheet: only the columns the aggregator reads are parsed.
+    // The hourly export lists the newest hour first and grows all month, so only the last
+    // HOURLY_KEEP_DAYS days are read (default 2: today + yesterday's late hours); reading stops
+    // after 3000 rows in a row older than that. Header x-days overrides; 0 = whole file.
+    const keepDays = Number(req.headers.get("x-days") ?? Deno.env.get("HOURLY_KEEP_DAYS") ?? 2);
+    let cutoff: string | null = null, olderRun = 0, olderRows = 0, dateIdx = -1;
     let agg: ReturnType<typeof makeAggregator> | null = null, L: Layout | null = null, cols: (readonly [number, string])[] = [];
     const found = await readSheetRows(bytes, (header) => {
       const keys = header.map(normKey);
@@ -146,8 +154,17 @@ Deno.serve(async (req) => {
       L = lay;
       cols = wantedColumns(lay);
       agg = makeAggregator(managed, source, lay);
+      dateIdx = keys.indexOf(lay.timeKey ?? lay.dateKey);
       return cols.map(([i]) => i);
     }, (cells) => {
+      if (keepDays > 0 && dateIdx >= 0 && L && (L as Layout).kind === "hourly") {
+        const d = isoDate(cells[dateIdx]);
+        if (d) {
+          if (cutoff === null) { const t = new Date(d + "T00:00:00Z"); t.setUTCDate(t.getUTCDate() - (keepDays - 1)); cutoff = t.toISOString().slice(0, 10); }
+          if (d < cutoff) { olderRows++; if (++olderRun >= 3000) return false; return; }
+          olderRun = 0;
+        }
+      }
       const r: Row = {};
       for (const [i, k] of cols) r[k] = cells[i] ?? null;
       agg!.add(r);
@@ -167,7 +184,7 @@ Deno.serve(async (req) => {
       dailyDays = [...new Set((kept ?? []).map((k: { date: string }) => k.date))].sort();
       out = out.filter((r) => !dailyDays.includes(r.date));
     }
-    const info = { sheet: found.sheet, kind: layout.kind, dateColumn: layout.dateKey, gmvColumn: layout.gmvKey,
+    const info = { readDaysFrom: cutoff, olderRowsSkipped: olderRows, sheet: found.sheet, kind: layout.kind, dateColumn: layout.dateKey, gmvColumn: layout.gmvKey,
       rowsIn: res.rowsIn, skipped: res.skipped, skippedWhy: res.why, keptLockedDays: lockedDays.length ? `${lockedDays[0]} → ${lockedDays.at(-1)}` : null,
       keptDailyDays: dailyDays, skuDays: out.length, hourRows: res.hours.length, days: perDay(out) };
     if (dryRun) return json({ ok: true, dryRun: true, fileHash: hash, columns: layout.columns, sampleSkipped: res.sample, ...info });
