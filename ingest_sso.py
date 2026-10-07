@@ -21,6 +21,7 @@ Usage:
   SUPABASE_SERVICE_KEY=... python ingest_sso.py ... --push
 """
 import argparse
+import collections
 import datetime as dt
 import json
 import math
@@ -39,6 +40,8 @@ ADS_NET = 0.985  # Ads less 1.5% Amex kickback
 TEAM_LEADER = {"Team Cẩm Tú": "Quế Anh"}      # one leader for the whole team when the PIC file has none
 LEADER_ALIAS = {"Tú ASC": "Quế Anh"}           # renamed leaders
 NO_LEADER_TEAMS = {"Spreetail"}                # partner-managed, no leader
+TEAM_OVERRIDE = {sku: "Team Cẩm Tú" for sku in  # listed under Đồng Dinh in the target file, owned by Cẩm Tú (confirmed 07/10)
+                 ("MRAG", "PRYN", "L0BS", "PAKP", "PHJ6", "ZHHQ", "TG2L", "5DEI", "JUVN", "VU7D", "FLE2")}
 PIC_OVERRIDE = {"5DEI": "Nhi Diệp", "JUVN": "Nhi Diệp", "VU7D": "Nhi Diệp"}  # not in any PIC file (confirmed 07/10)
 
 
@@ -288,7 +291,7 @@ def build(a):
     skus, targets, demand = {}, [], []
     for r in p["rows"]:
         sku = r["s"]
-        team = r.get("team")
+        team = TEAM_OVERRIDE.get(sku, r.get("team"))
         own = pic_d.get(sku) if team == "Team Đồng Dinh" else fol.get(sku) if team == "Team Cẩm Tú" else None
         own = own or pic_d.get(sku) or fol.get(sku) or {}
         price = (r.get("octTarget") or {}).get("price") or {}
@@ -345,6 +348,8 @@ def build(a):
         s["pic"] = PIC_OVERRIDE.get(s["sku"], s["pic"])
         leader = short_name(s.get("leader"))
         leader = LEADER_ALIAS.get(leader, leader)
+        if s["sku"] in TEAM_OVERRIDE:
+            leader = TEAM_LEADER.get(s["team"], leader)
         if not leader and s.get("team") in TEAM_LEADER:
             leader = TEAM_LEADER[s["team"]]
         s["leader"] = None if s.get("team") in NO_LEADER_TEAMS else leader
@@ -366,6 +371,11 @@ def build(a):
     if a.daily:
         print("daily sales")
         sales = load_daily(a.daily)
+        if a.only_teams:  # e.g. the Đồng Dinh export also carries a few rows of Cẩm Tú SKUs: keep each team's own file
+            keep = {s for s, v in skus.items() if v.get("team") in a.only_teams}
+            dropped = collections.Counter("SKU ngoài danh sách" if r["sku"] not in skus else skus[r["sku"]].get("team") for r in sales if r["sku"] not in keep)
+            sales = [r for r in sales if r["sku"] in keep]
+            print(f"  --only-teams: kept {len(sales):,} SKU-days, skipped {dict(dropped)}")
         for s in {r["sku"] for r in sales} - set(skus):
             cat = next(r["category"] for r in sales if r["sku"] == s)
             skus[s] = {**{c: None for c in SKU_COLS}, "sku": s, "main_pl": cat}
@@ -400,6 +410,7 @@ def main():
     ap.add_argument("--followup")
     ap.add_argument("--tracking-sheet", default="Tracking_0925")
     ap.add_argument("--daily", nargs="*")
+    ap.add_argument("--only-teams", nargs="*", help="load sales only for SKUs of these teams, e.g. \"Team Đồng Dinh\" Spreetail")
     ap.add_argument("--inventory", help="Yes4All US Inventory <date>.xlsx (sheet report)")
     ap.add_argument("--max-part-kb", type=int, default=900)
     ap.add_argument("--push", action="store_true", help="upsert into Supabase (needs SUPABASE_SERVICE_KEY)")
